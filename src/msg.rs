@@ -1,6 +1,8 @@
 // msg
 
-use crossterm::event::{Event, KeyEvent, KeyEventKind, KeyCode};
+use crossterm::event::{
+    Event, KeyEvent, KeyEventKind, KeyCode
+};
 
 #[derive(Clone, PartialEq, Debug)]
 pub enum Message 
@@ -14,7 +16,7 @@ pub enum Message
 
 impl Message 
 {
-    // return a Message for a relevant event
+    // given a relevant Event, return some Message
     pub fn from_event(event: Event) -> Option<Message> 
     {
         match event 
@@ -27,6 +29,7 @@ impl Message
         }
     }
 
+    // given a relevant KeyEvent, return some Message
     fn from_key_event(keyevent: KeyEvent) -> Option<Message> 
     {
         match keyevent {
