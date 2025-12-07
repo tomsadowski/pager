@@ -5,8 +5,7 @@ use crossterm::event::{
 };
 
 #[derive(Clone, PartialEq, Debug)]
-pub enum Message 
-{
+pub enum Message {
     Code(char),
     Resize(u16, u16),
     Enter,
@@ -14,24 +13,21 @@ pub enum Message
     Stop,
 }
 
-impl Message 
-{
+impl Message {
     // given a relevant Event, return some Message
-    pub fn from_event(event: Event) -> Option<Message> 
-    {
-        match event 
-        {
-            Event::Key(keyevent) => Self::from_key_event(keyevent),
-
-            Event::Resize(y, x)  => Some(Message::Resize(y, x)),
-
-            _                    => None
+    pub fn from_event(event: Event) -> Option<Message> {
+        match event {
+            Event::Key(keyevent) => 
+                Self::from_key_event(keyevent),
+            Event::Resize(y, x)  => 
+                Some(Message::Resize(y, x)),
+            _ => 
+                None
         }
     }
 
     // given a relevant KeyEvent, return some Message
-    fn from_key_event(keyevent: KeyEvent) -> Option<Message> 
-    {
+    fn from_key_event(keyevent: KeyEvent) -> Option<Message> {
         match keyevent {
             KeyEvent {
                 code: KeyCode::Char(c),

@@ -21,8 +21,7 @@ use std::{
 };
 
 
-fn main() -> io::Result<()> 
-{
+fn main() -> io::Result<()> {
     // set up
     let args: Vec<String> = env::args().collect();
     let Some(path) = args.get(1) else {
@@ -30,25 +29,21 @@ fn main() -> io::Result<()>
     };
     terminal::enable_raw_mode()?;
     let text       = fs::read_to_string(&path)?;
-    let mut model  = Model::init(&text, terminal::size()?);
+    let mut model  = Model::new(&text, terminal::size()?);
     let mut stdout = stdout();
     stdout
         .queue(terminal::EnterAlternateScreen)?
         .queue(terminal::DisableLineWrap)?
         .queue(cursor::Show)?;
 
-
     // main loop
-    while !model.quit()
-    {
+    while !model.quit() {
         model.view(&stdout)?;
 
-        if let Some(msg) = Message::from_event(event::read()?) 
-        {
+        if let Some(msg) = Message::from_event(event::read()?) {
             model.update(msg);
         }
     }
-
 
     // clean up
     terminal::disable_raw_mode()?;

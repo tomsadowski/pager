@@ -18,8 +18,7 @@ const QUIT:  char = 'q';
 
 
 #[derive(Clone, Debug)]
-pub struct Model<'a, 'b>
-{
+pub struct Model<'a, 'b> {
     quit:         bool,
     source_text:  Vec<&'a str>,
     display_text: Vec<&'b str>,
@@ -28,10 +27,8 @@ pub struct Model<'a, 'b>
     cursor:       (u16, u16),
 } 
 
-impl<'a: 'b, 'b> Model<'a, 'b>
-{
-    pub fn init(text: &'a str, size: (u16, u16)) -> Self 
-    {
+impl<'a: 'b, 'b> Model<'a, 'b> {
+    pub fn new(text: &'a str, size: (u16, u16)) -> Self {
         let source: Vec<&str> = text.lines().collect();
         let wrapped = Self::get_wrapped(&source, usize::from(size.0));
 
@@ -45,11 +42,9 @@ impl<'a: 'b, 'b> Model<'a, 'b>
         }
     }
 
-    pub fn view(&self, mut stdout: &Stdout) -> io::Result<()>
-    {
+    pub fn view(&self, mut stdout: &Stdout) -> io::Result<()> {
         let start = usize::from(self.scroll);
         let end   = usize::from(self.scroll + self.size.1);
-
         stdout.queue(terminal::Clear(terminal::ClearType::All))?;
 
         for (i, l) in self.display_text[start..end].iter().enumerate() {
@@ -59,18 +54,14 @@ impl<'a: 'b, 'b> Model<'a, 'b>
         }
 
         stdout.queue(cursor::MoveTo(self.cursor.0, self.cursor.1))?;
-
         stdout.flush()?;
-
         Ok(())
     }
 
-    pub fn update(&mut self, msg: Message)
-    {
-        match msg 
-        {
-            Message::Resize(x, y) => self.resize((x, y)),
-
+    pub fn update(&mut self, msg: Message) {
+        match msg {
+            Message::Resize(x, y) => 
+                self.resize((x, y)),
             Message::Code(c) => {
                 match c {
                     UP   => self.move_cursor_up(),
@@ -79,18 +70,15 @@ impl<'a: 'b, 'b> Model<'a, 'b>
                     _ => {}
                 }
             }
-
             _ => {}
         }
     }
 
-    pub fn quit(&self) -> bool 
-    {
+    pub fn quit(&self) -> bool {
         self.quit
     }
 
-    fn get_wrapped(lines: &Vec<&'a str>, width: usize) -> Vec<&'b str>
-    {
+    fn get_wrapped(lines: &Vec<&'a str>, width: usize) -> Vec<&'b str> {
         let mut wrapped: Vec<&str> = vec![];
 
         for l in lines.iter() {
@@ -99,29 +87,39 @@ impl<'a: 'b, 'b> Model<'a, 'b>
             let     length = l.len();
 
             while end < length {
-                wrapped.push(&l[start..end]);
-                start = end;
-                end += width;
+                let longest = &l[start..end];
+                match longest.rsplit_once(' ') {
+                    Some((a, b)) => {
+                        let shortest = match a.len() {
+                            0 => b,
+                            _ => a,
+                        };
+                        wrapped.push(shortest);
+                        start += shortest.len();
+                        end    = start + width;
+                    }
+                    None => {
+                        wrapped.push(longest);
+                        start = end;
+                        end  += width;
+                    }
+                }
             }
             if start < length {
                 wrapped.push(&l[start..length]);
             }
         }
-
         wrapped
     }
 
-    fn resize(&mut self, size: (u16, u16)) 
-    {
+    fn resize(&mut self, size: (u16, u16)) {
         self.size = size;
         self.display_text = 
             Self::get_wrapped(&self.source_text, usize::from(self.size.0));
     }
 
-    fn move_cursor_down(&mut self)
-    {
-        if self.cursor.1 < self.size.1 - 1 
-        {
+    fn move_cursor_down(&mut self) {
+        if self.cursor.1 < self.size.1 - 1 {
             self.cursor.1 += 1;
         }
         else if 
@@ -132,14 +130,11 @@ impl<'a: 'b, 'b> Model<'a, 'b>
         }
     }
 
-    fn move_cursor_up(&mut self) 
-    {
-        if self.cursor.1 > 0 
-        {
+    fn move_cursor_up(&mut self) {
+        if self.cursor.1 > 0 {
             self.cursor.1 -= 1;
         }
-        else if self.scroll > 0 
-        {
+        else if self.scroll > 0 {
             self.scroll -= 1;
         }
     }
