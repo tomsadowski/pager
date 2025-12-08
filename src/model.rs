@@ -1,16 +1,13 @@
 // pager/src/model
 
 use crate::{
-    msg::Message,
     textview::TextView,
-    tomtext::TomTextLine,
-};
+    tomtext::{TomTextLine, TomTextData}};
 use crossterm::{
-    QueueableCommand, style, cursor, terminal
-};
-use std::io::{
-    self, Write, Stdout
-};
+    style::{self, Colors, Color},
+    QueueableCommand, cursor,
+    event::{Event, KeyEvent, KeyEventKind, KeyCode}};
+use std::io::{self, Write, Stdout};
 
 const LEFT:  char = 'e';
 const DOWN:  char = 'i';
@@ -18,126 +15,126 @@ const UP:    char = 'o';
 const RIGHT: char = 'n';
 const QUIT:  char = 'q';
 
-
+fn get_tuples(lines: &Vec<TomTextLine>) -> Vec<(Colors, String)> {
+    lines
+        .iter()
+        .map(|g| (get_colors(&g.data), g.text.to_string()))
+        .collect()
+}
+fn get_colors(data: &TomTextData) -> Colors {
+    match data {
+        TomTextData::Heading => Colors::new(
+                Color::Rgb {r: 225,  g: 105,  b:  180},
+                Color::Rgb {r:   0,  g:   0,  b:    0},
+            ),
+        TomTextData::Text => Colors::new(
+                Color::Rgb {r: 225,  g: 180,  b: 105},
+                Color::Rgb {r:   0,  g:   0,  b:   0},
+            ),
+        TomTextData::Link(_) => Colors::new(
+                Color::Rgb {r: 180,  g: 105,  b: 225},
+                Color::Rgb {r:   0,  g:   0,  b:   0},
+            ),
+    }
+}
+#[derive(Clone, PartialEq, Debug)]
+pub enum Message {
+    Code(char),
+    Resize(u16, u16),
+    Enter,
+}
+impl Message {
+    // given a relevant Event, return some Message
+    pub fn from_event(event: Event) -> Option<Self> {
+        match event {
+            Event::Key(keyevent) => 
+                Self::from_key_event(keyevent),
+            Event::Resize(y, x)  => 
+                Some(Self::Resize(y, x)),
+            _ => None
+        }
+    }
+    // given a relevant KeyEvent, return some Message
+    fn from_key_event(keyevent: KeyEvent) -> Option<Self> {
+        match keyevent {
+            KeyEvent {
+                code: KeyCode::Char(c),
+                kind: KeyEventKind::Press,
+                ..
+            } => {
+                Some(Self::Code(c))
+            }
+            KeyEvent {
+                code: KeyCode::Enter,
+                kind: KeyEventKind::Press,
+                ..
+            } => {
+                Some(Self::Enter)
+            }
+            _ => None
+        }
+    }
+}
 #[derive(Clone, Debug)]
 pub struct Model {
-    quit:         bool,
-    source_text:  Vec<TomText>,
-    display_text: TextView,
-    scroll:       u16,
-    size:         (u16, u16),
-    cursor:       (u16, u16),
+    quit:       bool,
+    dialog:     Option<String>,
+    text_data:  Vec<TomTextData>,
+    text_view:  TextView,
 } 
-
-impl<'a: 'b, 'b> Model<'a, 'b> {
-    pub fn new(text: &'a str, size: (u16, u16)) -> Self {
-        let source: Vec<&str> = text.lines().collect();
-        let wrapped = Self::get_wrapped(&source, usize::from(size.0));
-
-        return Self {
-            quit:         false,
-            source_text:  source,
-            display_text: wrapped,
-            size:         size,
-            cursor:       (0, 0),
-            scroll:       0,
-        }
+impl Model {
+    pub fn new(text: String, size: (u16, u16)) -> Result<Self, String> {
+        let lines = TomTextLine::parse_doc(text.lines().collect())?;
+        Ok(Self {
+            quit:      false,
+            dialog:    None,
+            text_data: lines.iter().map(|l| l.data.clone()).collect(),
+            text_view: TextView::new(get_tuples(&lines), size.0, size.1),
+        })
     }
-
-    pub fn view(&self, mut stdout: &Stdout) -> io::Result<()> {
-        let start = usize::from(self.scroll);
-        let end   = usize::from(self.scroll + self.size.1);
-        stdout.queue(terminal::Clear(terminal::ClearType::All))?;
-
-        for (i, l) in self.display_text[start..end].iter().enumerate() {
-            stdout
-                .queue(cursor::MoveTo(0, i as u16))?
-                .queue(style::Print(l))?;
-        }
-
-        stdout.queue(cursor::MoveTo(self.cursor.0, self.cursor.1))?;
-        stdout.flush()?;
-        Ok(())
-    }
-
     pub fn update(&mut self, msg: Message) {
         match msg {
             Message::Resize(x, y) => 
-                self.resize((x, y)),
+                self.text_view.resize(x, y),
+            Message::Enter => {
+                match &self.dialog {
+                    Some(text) => 
+                        self.dialog = None,
+                    None => {
+                        self.dialog = Some(
+                            format!("{:?}", 
+                                self.text_data[
+                                    self.text_view
+                                        .get_source_index_under_cursor()
+                                ]
+                            )
+                        );
+                    }
+                }
+            }
             Message::Code(c) => {
                 match c {
-                    UP   => self.move_cursor_up(),
-                    DOWN => self.move_cursor_down(),
+                    UP   => self.text_view.move_cursor_up(),
+                    DOWN => self.text_view.move_cursor_down(),
                     QUIT => self.quit = true,
                     _ => {}
                 }
             }
-            _ => {}
         }
     }
-
+    pub fn view(&self, mut stdout: &Stdout) -> io::Result<()> {
+        match &self.dialog {
+            Some(text) => {
+                stdout
+                    .queue(cursor::MoveTo(0, 0))?
+                    .queue(style::Print(text))?;
+                stdout.flush()?;
+                Ok(())
+            }
+            None => self.text_view.view(stdout),
+        }
+    }
     pub fn quit(&self) -> bool {
         self.quit
-    }
-
-    fn get_wrapped(lines: &Vec<&'a str>, width: usize) -> Vec<&'b str> {
-        let mut wrapped: Vec<&str> = vec![];
-
-        for l in lines.iter() {
-            let mut start  = 0;
-            let mut end    = width;
-            let     length = l.len();
-
-            while end < length {
-                let longest = &l[start..end];
-                match longest.rsplit_once(' ') {
-                    Some((a, b)) => {
-                        let shortest = match a.len() {
-                            0 => b,
-                            _ => a,
-                        };
-                        wrapped.push(shortest);
-                        start += shortest.len();
-                        end    = start + width;
-                    }
-                    None => {
-                        wrapped.push(longest);
-                        start = end;
-                        end  += width;
-                    }
-                }
-            }
-            if start < length {
-                wrapped.push(&l[start..length]);
-            }
-        }
-        wrapped
-    }
-
-    fn resize(&mut self, size: (u16, u16)) {
-        self.size = size;
-        self.display_text = 
-            Self::get_wrapped(&self.source_text, usize::from(self.size.0));
-    }
-
-    fn move_cursor_down(&mut self) {
-        if self.cursor.1 < self.size.1 - 1 {
-            self.cursor.1 += 1;
-        }
-        else if 
-            (self.scroll + self.size.1 - 1) < 
-            ((self.display_text.len() as u16) - 1) 
-        {
-            self.scroll += 1;
-        }
-    }
-
-    fn move_cursor_up(&mut self) {
-        if self.cursor.1 > 0 {
-            self.cursor.1 -= 1;
-        }
-        else if self.scroll > 0 {
-            self.scroll -= 1;
-        }
     }
 } 
