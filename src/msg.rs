@@ -1,4 +1,4 @@
-// msg
+// pager/src/msg
 
 use crossterm::event::{
     Event, KeyEvent, KeyEventKind, KeyCode

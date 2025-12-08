@@ -1,7 +1,9 @@
-// model
+// pager/src/model
 
 use crate::{
-    msg::Message
+    msg::Message,
+    textview::TextView,
+    tomtext::TomTextLine,
 };
 use crossterm::{
     QueueableCommand, style, cursor, terminal
@@ -18,10 +20,10 @@ const QUIT:  char = 'q';
 
 
 #[derive(Clone, Debug)]
-pub struct Model<'a, 'b> {
+pub struct Model {
     quit:         bool,
-    source_text:  Vec<&'a str>,
-    display_text: Vec<&'b str>,
+    source_text:  Vec<TomText>,
+    display_text: TextView,
     scroll:       u16,
     size:         (u16, u16),
     cursor:       (u16, u16),

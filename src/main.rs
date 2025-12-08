@@ -1,10 +1,13 @@
-// main
+// pager/src/main
 
 #![allow(unused_variables)]
 #![allow(dead_code)]
 
 mod model;
+mod textview;
+mod tomtext;
 mod msg;
+mod util;
 
 use crate::{
     model::Model,
@@ -22,15 +25,17 @@ use std::{
 
 
 fn main() -> io::Result<()> {
+
     // set up
     let args: Vec<String> = env::args().collect();
     let Some(path) = args.get(1) else {
         panic!("supply path as arg")
     };
-    terminal::enable_raw_mode()?;
     let text       = fs::read_to_string(&path)?;
     let mut model  = Model::new(&text, terminal::size()?);
     let mut stdout = stdout();
+
+    terminal::enable_raw_mode()?;
     stdout
         .queue(terminal::EnterAlternateScreen)?
         .queue(terminal::DisableLineWrap)?
