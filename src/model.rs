@@ -105,7 +105,7 @@ impl Model {
                             format!("{:?}", 
                                 self.text_data[
                                     self.text_view
-                                        .get_source_index_under_cursor()
+                                        .get_index_under_cursor()
                                 ]
                             )
                         );

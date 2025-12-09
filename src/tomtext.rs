@@ -1,20 +1,23 @@
 // pager/src/tomtext
 
-const LINK_SYMBOL:    &str = ".l";
-const HEADING_SYMBOL: &str = ".h";
-
 #[derive(Clone, PartialEq, Debug)]
 pub enum TomTextData {
     Heading,
     Text, 
     Link(String),
 } 
+
 #[derive(Clone, PartialEq, Debug)]
 pub struct TomTextLine {
     pub data: TomTextData,
     pub text: String,
 } 
+
+const LINK_SYMBOL:    &str = ".l";
+const HEADING_SYMBOL: &str = ".h";
+
 impl TomTextLine {
+
     fn parse_line(line: &str) -> Result<Self, String> {
         if let Some((symbol, mut text)) = line.split_at_checked(2) {
             text = text.trim();
@@ -44,6 +47,7 @@ impl TomTextLine {
             text: line.to_string(),
         })
     }
+
     pub fn parse_doc(lines: Vec<&str>) -> Result<Vec<Self>, String> {
         let mut vec = vec![];
         // parse remaining lines
