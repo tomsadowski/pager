@@ -6,8 +6,11 @@
 mod model;
 mod textview;
 mod tomtext;
+mod common;
 
-use crate::model::{Model, Message};
+use crate::{
+    common::Message,
+    model::Model};
 use crossterm::{QueueableCommand, terminal, cursor, event};
 use std::io::{self, stdout, Write};
 use std::{env, fs};

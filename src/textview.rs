@@ -15,11 +15,8 @@ pub struct TextView {
     max_lines:    usize,
 } 
 impl TextView {
-
     pub fn new(source: Vec<(Colors, String)>, width: u16, height: u16) -> Self {
-        // clone input parameter to live beyond it
         let source_text = source.clone();
-
         let wrapped: Vec<(usize, String)> = 
             Self::get_indexed_wrapped(
                     source_text.iter().map(|x| &x.1).collect(), 
@@ -27,9 +24,8 @@ impl TextView {
                 .iter()
                 .map(|x| (x.0, x.1.to_string()))
                 .collect();
-
-        let text_length       = wrapped.len();
-        let scrn_length       = usize::from(height);
+        let text_length = wrapped.len();
+        let scrn_length = usize::from(height);
         let (max_scroll, max_lines) = 
             match text_length < scrn_length {
                 true  => (0                        , text_length),
@@ -45,10 +41,7 @@ impl TextView {
             scroll:       0,
         }
     }
-
-    // a lot of state-management is required here.
     pub fn resize(&mut self, width: u16, height: u16) {
-
         // length of display text determined by screen width
         self.display_text = 
             Self::get_indexed_wrapped(
@@ -57,10 +50,8 @@ impl TextView {
                 .iter()
                 .map(|x| (x.0, x.1.to_string()))
                 .collect();
-
         let text_length = self.display_text.len();
         let scrn_length = usize::from(height);
-
         // screen cannot be filled, reset cursor and scroll to beginning
         if text_length < scrn_length {
             self.max_lines  = text_length;
@@ -76,11 +67,9 @@ impl TextView {
             self.scroll     = std::cmp::min(self.scroll, self.max_scroll);
         }
     }
-
     pub fn view(&self, mut stdout: &Stdout) -> io::Result<()> {
         // clear everything
         stdout.queue(terminal::Clear(terminal::ClearType::All))?;
-
         // display text
         for (i, l) in 
             self.display_text[self.scroll..(self.scroll + self.max_lines)]
@@ -96,12 +85,10 @@ impl TextView {
         stdout.flush()?;
         Ok(())
     }
-
     // the index returned should be a key to the original (unwrapped) data
     pub fn get_index_under_cursor(&self) -> usize {
         self.display_text[self.cursor].0
     }
-
     pub fn move_cursor_down(&mut self) {
         if self.cursor < self.max_lines - 1 {
             self.cursor += 1;
@@ -110,7 +97,6 @@ impl TextView {
             self.scroll += 1;
         }
     }
-
     pub fn move_cursor_up(&mut self) {
         if 0 < self.cursor {
             self.cursor -= 1;
@@ -119,7 +105,6 @@ impl TextView {
             self.scroll -= 1;
         }
     }
-
     fn get_indexed_wrapped<'a: 'b, 'b>(lines: Vec<&'a String>, width: usize) 
         -> Vec<(usize, &'b str)> 
     {
@@ -132,7 +117,6 @@ impl TextView {
         }
         wrapped
     }
-
     fn get_wrapped(line: &str, width: usize) -> Vec<&str> {
         let mut wrapped: Vec<&str> = vec![];
         let mut start  = 0;
