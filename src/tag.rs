@@ -1,21 +1,20 @@
 // pager/src/tomtext
 
-#[derive(Clone, PartialEq, Debug)]
-pub enum TomTextData {
-    Heading,
-    Text, 
-    Link(String),
-} 
-
 const LINK_SYMBOL:    &str = ".l";
 const HEADING_SYMBOL: &str = ".h";
 
 #[derive(Clone, PartialEq, Debug)]
-pub struct TomTextLine {
-    pub data: TomTextData,
+pub enum TextTag {
+    Heading,
+    Text, 
+    Link(String),
+} 
+#[derive(Clone, PartialEq, Debug)]
+pub struct TaggedText {
+    pub tag:  TextTag,
     pub text: String,
 } 
-impl TomTextLine {
+impl TaggedText {
     fn parse_line(line: &str) -> Result<Self, String> {
         if let Some((symbol, mut text)) = line.split_at_checked(2) {
             text = text.trim();
@@ -23,25 +22,25 @@ impl TomTextLine {
                 match text.split_once(' ') {
                     Some((link, txt)) =>
                         return Ok(Self {
-                            data: TomTextData::Link(link.to_string()),
+                            tag:  TextTag::Link(link.to_string()),
                             text: txt.to_string(),
                         }),
                     None => 
                         return Ok(Self {
-                            data: TomTextData::Link(text.to_string()),
+                            tag:  TextTag::Link(text.to_string()),
                             text: text.to_string(),
                         }),
                 }
             }
             if symbol == HEADING_SYMBOL {
                 return Ok(Self {
-                    data: TomTextData::Heading,
+                    tag:  TextTag::Heading,
                     text: text.to_string(),
                 })
             }
         }
         Ok(Self {
-            data: TomTextData::Text,
+            tag:  TextTag::Text,
             text: line.to_string(),
         })
     }

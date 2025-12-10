@@ -3,14 +3,11 @@
 #![allow(unused_variables)]
 #![allow(dead_code)]
 
-mod model;
-mod textview;
-mod tomtext;
-mod common;
+mod ui;
+mod tag;
+mod reader;
 
-use crate::{
-    common::Message,
-    model::Model};
+use crate::ui::UI;
 use crossterm::{QueueableCommand, terminal, cursor, event};
 use std::io::{self, stdout, Write};
 use std::{env, fs};
@@ -22,7 +19,8 @@ fn main() -> io::Result<()> {
         panic!("supply path as arg")
     };
     let text       = fs::read_to_string(&path)?;
-    let mut model  = Model::new(text, terminal::size()?).unwrap();
+    let size       = terminal::size()?;
+    let mut ui     = UI::new(text, size.0, size.1).unwrap();
     let mut stdout = stdout();
     terminal::enable_raw_mode()?;
     stdout
@@ -31,10 +29,10 @@ fn main() -> io::Result<()> {
         .queue(cursor::Show)?;
     stdout.flush()?;
     // main loop
-    while !model.quit() {
-        model.view(&stdout)?;
-        if let Some(msg) = Message::from_event(event::read()?) {
-            model.update(msg);
+    while !ui.quit() {
+        ui.view(&stdout)?;
+        if let Some(msg) = UI::getupdate(event::read()?) {
+            ui.update(msg);
         }
     }
     // clean up
