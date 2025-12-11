@@ -1,4 +1,4 @@
-// pager/src/tomtext
+// pager/src/tag
 
 const LINK_SYMBOL:    &str = ".l";
 const HEADING_SYMBOL: &str = ".h";

@@ -1,7 +1,7 @@
 // pager/src/ui
 
 use crate::{
-    reader::Reader,
+    reader::{Reader, GetColors},
     tag::{TextTag, TaggedText},
 };
 use crossterm::{
@@ -16,54 +16,56 @@ const UP:    char = 'o';
 const RIGHT: char = 'n';
 const QUIT:  char = 'q';
 
+impl GetColors for TextTag {
+    fn getcolors(&self) -> Colors {
+        match self {
+            TextTag::Heading => Colors::new(
+                Color::Rgb {r: 225,  g: 105,  b:  180},
+                Color::Rgb {r:   0,  g:   0,  b:    0},
+            ),
+            TextTag::Text => Colors::new(
+                Color::Rgb {r: 225,  g: 180,  b: 105},
+                Color::Rgb {r:   0,  g:   0,  b:   0},
+            ),
+            TextTag::Link(_) => Colors::new(
+                Color::Rgb {r: 180,  g: 105,  b: 225},
+                Color::Rgb {r:   0,  g:   0,  b:   0},
+            ),
+        } 
+    }
+}
+
 #[derive(Clone, PartialEq, Debug)]
 pub enum Message {
     Code(char),
     Resize(u16, u16),
     Enter,
 }
+
 #[derive(Clone, Debug)]
 pub struct UI {
     quit:      bool,
     dialog:    Option<String>,
     tagreader: Reader<TextTag>,
 } 
+
 impl UI {
     pub fn new(text: String, x: u16, y: u16) -> Result<Self, String> {
-        let text = 
-            Self::gettuples(&TaggedText::parse_doc(text.lines().collect())?);
+        let text = TaggedText::parse_doc(text.lines().collect())?
+            .iter()
+            .map(|g| (g.tag.clone(), g.text.to_string()))
+            .collect();
+
         Ok(Self {
             quit:      false,
             dialog:    None,
-            tagreader: Reader::new(text, x, y),
+            tagreader: Reader::new(text, usize::from(x), usize::from(y)),
         })
-    }
-    pub fn gettuples(lines: &Vec<TaggedText>) -> Vec<(TextTag, Colors, String)> {
-        lines
-            .iter()
-            .map(|g| (g.tag.clone(), Self::getcolors(&g.tag), g.text.to_string()))
-            .collect()
-    }
-    pub fn getcolors(data: &TextTag) -> Colors {
-        match data {
-            TextTag::Heading => Colors::new(
-                    Color::Rgb {r: 225,  g: 105,  b:  180},
-                    Color::Rgb {r:   0,  g:   0,  b:    0},
-                ),
-            TextTag::Text => Colors::new(
-                    Color::Rgb {r: 225,  g: 180,  b: 105},
-                    Color::Rgb {r:   0,  g:   0,  b:   0},
-                ),
-            TextTag::Link(_) => Colors::new(
-                    Color::Rgb {r: 180,  g: 105,  b: 225},
-                    Color::Rgb {r:   0,  g:   0,  b:   0},
-                ),
-        }
     }
     pub fn update(&mut self, msg: Message) {
         match msg {
             Message::Resize(x, y) => 
-                self.tagreader.resize(x, y),
+                self.tagreader.resize(usize::from(x), usize::from(y)),
             Message::Enter => {
                 match &self.dialog {
                     Some(text) => self.dialog = None,

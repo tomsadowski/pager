@@ -5,28 +5,27 @@ use crossterm::{
     QueueableCommand, cursor, terminal,
     style::{self, Colors}};
 
+pub trait GetColors {
+    fn getcolors(&self) -> Colors;
+}
+
 #[derive(Clone, Debug)]
 pub struct Reader<T> {
-    source:   Vec<(T, Colors, String)>,
-    slices:   Vec<(usize, String)>,
+    source:   Vec<(    T, String)>,
+    wrapped:  Vec<(usize, String)>,
     scroll:   usize,
     cursor:   usize,
     mxscroll: usize,
     mxlines:  usize,
 } 
-impl<T: Clone> Reader<T> {
-    pub fn new(source: Vec<(T, Colors, String)>, width: u16, height: u16) -> Self 
-    {
-        let source = source.clone();
-        let slices: Vec<(usize, String)> = 
-            Self::getindexedwrapped(
-                    source.iter().map(|x| &x.2).collect(), 
-                    usize::from(width))
-                .iter()
-                .map(|x| (x.0, x.1.to_string()))
-                .collect();
 
-        let textlength   = slices.len();
+impl<T: Clone + GetColors> Reader<T> {
+    pub fn new(source: Vec<(T, String)>, width: usize, height: usize) -> Self 
+    {
+        let source  = source.clone();
+        let wrapped = Self::getindexedwrapped(&source, width);
+
+        let textlength   = wrapped.len();
         let screenlength = usize::from(height);
         let (mxscroll, mxlines) = 
             match textlength < screenlength {
@@ -36,23 +35,17 @@ impl<T: Clone> Reader<T> {
 
         return Self {
             source:   source,
-            slices: slices,
-            mxlines:      mxlines,
-            mxscroll:     mxscroll,
-            cursor:       0,
-            scroll:       0,
+            wrapped:  wrapped,
+            mxlines:  mxlines,
+            mxscroll: mxscroll,
+            cursor:   0,
+            scroll:   0,
         }
     }
-    pub fn resize(&mut self, width: u16, height: u16) {
+    pub fn resize(&mut self, width: usize, height: usize) {
         // length of display text determined by screen width
-        self.slices = 
-            Self::getindexedwrapped(
-                    self.source.iter().map(|x| &x.2).collect(), 
-                    usize::from(width))
-                .iter()
-                .map(|x| (x.0, x.1.to_string()))
-                .collect();
-        let textlength   = self.slices.len();
+        self.wrapped = Self::getindexedwrapped(&self.source, width);
+        let textlength   = self.wrapped.len();
         let screenlength = usize::from(height);
 
         // screen cannot be filled
@@ -75,13 +68,13 @@ impl<T: Clone> Reader<T> {
         stdout.queue(terminal::Clear(terminal::ClearType::All))?;
         // display text
         for (screenindex, wrappedpair) in 
-            self.slices[self.scroll..(self.scroll + self.mxlines)]
+            self.wrapped[self.scroll..(self.scroll + self.mxlines)]
                 .iter()
                 .enumerate() 
         {
             stdout
                 .queue(cursor::MoveTo(0, screenindex as u16))?
-                .queue(style::SetColors(self.source[wrappedpair.0].1))?
+                .queue(style::SetColors(self.select(screenindex).getcolors()))?
                 .queue(style::Print(wrappedpair.1.as_str()))?;
         }
 
@@ -89,9 +82,11 @@ impl<T: Clone> Reader<T> {
         stdout.flush()?;
         Ok(())
     }
-    // the index returned should be a key to the original (unwrapped) data
-    pub fn select(&self) -> T {
-        self.source[self.slices[self.cursor].0].0.clone()
+    pub fn selectundercursor(&self) -> &T {
+        &self.source[self.wrapped[self.cursor].0].0
+    }
+    pub fn select(&self, i: usize) -> &T {
+        &self.source[self.wrapped[i].0].0
     }
     pub fn mvcursordown(&mut self) {
         if self.cursor < self.mxlines - 1 {
@@ -109,14 +104,14 @@ impl<T: Clone> Reader<T> {
             self.scroll -= 1;
         }
     }
-    pub fn getindexedwrapped<'a: 'b, 'b>(lines: Vec<&'a String>, width: usize) 
-        -> Vec<(usize, &'b str)> 
+    pub fn getindexedwrapped(lines: &Vec<(T, String)>, width: usize) 
+        -> Vec<(usize, String)>
     {
-        let mut wrapped: Vec<(usize, &str)> = vec![];
-        for (i, l) in lines.iter().enumerate() {
+        let mut wrapped: Vec<(usize, String)> = vec![];
+        for (i, (t, l)) in lines.iter().enumerate() {
             let v = Self::getwrapped(l, width);
             for s in v.iter() {
-                wrapped.push((i, s));
+                wrapped.push((i, String::from(*s)));
             }
         }
         wrapped
