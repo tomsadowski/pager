@@ -6,6 +6,7 @@
 mod ui;
 mod tag;
 mod reader;
+mod util;
 
 use crate::ui::UI;
 use crossterm::{QueueableCommand, terminal, cursor, event};

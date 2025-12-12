@@ -1,14 +1,13 @@
 // pager/src/ui
 
 use crate::{
-    reader::{Reader, GetColors},
-    tag::{TextTag, TaggedText},
-};
+    reader::Reader, 
+    util::GetColors,
+    tag::{TextTag, TaggedText}};
 use crossterm::{
-    style::{self, Colors, Color}, 
-    QueueableCommand, cursor,
+    style::{Colors, Color}, 
     event::{Event, KeyEvent, KeyEventKind, KeyCode}};
-use std::io::{self, Write, Stdout};
+use std::io::{self, Stdout};
 
 const LEFT:  char = 'e';
 const DOWN:  char = 'i';
@@ -38,17 +37,15 @@ impl GetColors for TextTag {
 #[derive(Clone, PartialEq, Debug)]
 pub enum Message {
     Code(char),
-    Resize(u16, u16),
+    Resize(usize, usize),
     Enter,
 }
 
 #[derive(Clone, Debug)]
 pub struct UI {
     quit:      bool,
-    dialog:    Option<String>,
     tagreader: Reader<TextTag>,
 } 
-
 impl UI {
     pub fn new(text: String, x: u16, y: u16) -> Result<Self, String> {
         let text = TaggedText::parse_doc(text.lines().collect())?
@@ -58,19 +55,18 @@ impl UI {
 
         Ok(Self {
             quit:      false,
-            dialog:    None,
             tagreader: Reader::new(text, usize::from(x), usize::from(y)),
         })
     }
     pub fn update(&mut self, msg: Message) {
         match msg {
-            Message::Resize(x, y) => 
-                self.tagreader.resize(usize::from(x), usize::from(y)),
+            Message::Resize(x, y) => {
+                self.tagreader.resize(x, y);
+          //      if let Some(&mut dialog) = self.dialog {
+          //          dialog.resize(x, y);
+          //      };
+            }
             Message::Enter => {
-                match &self.dialog {
-                    Some(text) => self.dialog = None,
-                    _          => self.dialog = None,
-                }
             }
             Message::Code(c) => {
                 match c {
@@ -82,17 +78,8 @@ impl UI {
             }
         }
     }
-    pub fn view(&self, mut stdout: &Stdout) -> io::Result<()> {
-        match &self.dialog {
-            Some(text) => {
-                stdout
-                    .queue(cursor::MoveTo(0, 0))?
-                    .queue(style::Print(text))?;
-                stdout.flush()?;
-                Ok(())
-            }
-            None => self.tagreader.view(stdout),
-        }
+    pub fn view(&self, stdout: &Stdout) -> io::Result<()> {
+        self.tagreader.view(stdout)
     }
     // given a relevant Event, return some Message
     pub fn getupdate(event: Event) -> Option<Message> {
@@ -115,7 +102,7 @@ impl UI {
                     }
                     _ => None
                 }
-            Event::Resize(y, x)  => Some(Message::Resize(y, x)),
+            Event::Resize(y, x)  => Some(Message::Resize(usize::from(y), usize::from(x))),
             _                    => None
         }
     }
