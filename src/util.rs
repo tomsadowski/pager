@@ -4,11 +4,11 @@ use crossterm::style::Colors;
 
 #[derive(Clone, Debug)]
 pub struct Bounds {
-    pub loc: Location,
+    pub pos: Position,
     pub dim: Dimension,
 }
 #[derive(Clone, Debug)]
-pub struct Location {
+pub struct Position {
     pub x: usize, 
     pub y: usize, 
 }

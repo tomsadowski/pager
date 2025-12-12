@@ -14,88 +14,164 @@ use crossterm::{
 };
 
 
+#[derive(Clone, Debug)]
+pub struct Cursor {
+    cur: usize,
+    min: usize,
+    max: usize,
+}
+impl Cursor {
+    pub fn top(textlength: usize, bounds: &Bounds) -> Self {
+        match textlength < bounds.dim.h {
+            true  => Self {
+                cur: bounds.pos.y, 
+                min: bounds.pos.y,
+                max: bounds.pos.y + textlength,
+            },
+            false => Self {
+                cur: bounds.pos.y, 
+                min: bounds.pos.y,
+                max: bounds.pos.y + bounds.dim.h,
+            },
+        }
+    }
+    pub fn center(textlength: usize, bounds: &Bounds) -> Self {
+        match textlength < bounds.dim.h {
+            true  => Self {
+                cur: (textlength - 1) / 2,
+                min: bounds.pos.y,
+                max: bounds.pos.y + textlength,
+            },
+            false => Self {
+                cur: (bounds.dim.h - 1) / 2,
+                min: bounds.pos.y,
+                max: bounds.pos.y + bounds.dim.h,
+            },
+        }
+    }
+    pub fn range(&self) -> usize {
+        self.max - self.min
+    }
+    pub fn moveup(&mut self, step: usize) -> bool {
+        if self.min <= (self.cur - step) {
+            self.cur -= step;
+            return true
+        } 
+        false
+    }
+    pub fn movedown(&mut self, step: usize) -> bool {
+        if (self.cur + step) <= (self.max - 1) {
+            self.cur += step;
+            return true 
+        }
+        false
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct Scroll {
+    cur: usize,
+    max: usize,
+}
+impl Scroll {
+    pub fn new(textlength: usize, cursor: &Cursor) -> Self {
+        let range = cursor.range();
+        match textlength <= range  {
+            true  => Self {
+                cur: 0, 
+                max: 0,
+            },
+            false => Self {
+                cur: 0, 
+                max: textlength - range
+            },
+        }
+    }
+    pub fn resize(&mut self, textlength: usize, cursor: &Cursor) {
+        let range = cursor.range();
+        match textlength <= range  {
+            true  => {
+                self.cur = 0;
+                self.max = 0;
+            },
+            false => {
+                self.max = textlength - range;
+                self.cur = min(self.cur, self.max);
+            },
+        }
+    }
+    pub fn moveup(&mut self, step: usize) -> bool {
+        if usize::MIN <= (self.cur - step) {
+            self.cur -= step;
+            return true
+        } 
+        false
+    }
+    pub fn movedown(&mut self, step: usize) -> bool {
+        if (self.cur + step) <= self.max {
+            self.cur += step;
+            return true
+        } 
+        false
+    }
+}
 
 #[derive(Clone, Debug)]
 pub struct Reader<T> {
-    source:    Vec<(    T, String)>,
-    wrapped:   Vec<(usize, String)>,
-    bounds:    Bounds,
-    scroll:    usize,
-    cursor:    usize,
-    maxscroll: usize,
-    maxcursor: usize,
+    bounds:  Bounds,
+    scroll:  Scroll,
+    cursor:  Cursor,
+    source:  Vec<(    T, String)>,
+    wrapped: Vec<(usize, String)>,
 } 
 impl<T: Clone + GetColors> Reader<T> {
     pub fn new(source: Vec<(T, String)>, bounds: Bounds) -> Self {
-        let source       = source.clone();
-        let wrapped      = Self::wraplist(&source, bounds.dim.w);
-        let textlength   = wrapped.len();
-        let (maxscroll, maxcursor) = 
-            match textlength < bounds.dim.h {
-                true  => (0, textlength),
-                false => (textlength - bounds.dim.h, bounds.dim.h),
-            };
+        let source     = source.clone();
+        let wrapped    = Self::wraplist(&source, bounds.dim.w);
+        let textlength = wrapped.len();
+        let cursor     = Cursor::top(textlength, &bounds);
+        let scroll     = Scroll::new(textlength, &cursor);
         return Self {
-            source:    source,
-            wrapped:   wrapped,
-            maxcursor: maxcursor,
-            maxscroll: maxscroll,
-            cursor:    0,
-            scroll:    0,
-            bounds:    bounds,
+            source:  source,
+            wrapped: wrapped,
+            cursor:  cursor,
+            scroll:  scroll,
+            bounds:  bounds,
         }
     }
     pub fn resize(&mut self, newbounds: Bounds) {
-        self.wrapped = Self::wraplist(&self.source, newbounds.dim.w);
-        let textlength   = self.wrapped.len();
-        // bounds cannot be filled
-        if textlength < newbounds.dim.h {
-            self.maxcursor = textlength;
-            self.maxscroll = 0;
-            self.cursor    = (textlength - 1) / 2;
-            self.scroll    = 0;
-        } 
-        // bounds can be filled
-        else {
-            self.maxcursor = newbounds.dim.h;
-            self.maxscroll = textlength - newbounds.dim.h;
-            self.cursor    = (newbounds.dim.h - 1) / 2;
-            self.scroll    = min(self.scroll, self.maxscroll);
-        }
-        self.bounds = newbounds;
+        self.wrapped   = Self::wraplist(&self.source, newbounds.dim.w);
+        let textlength = self.wrapped.len();
+        self.cursor    = Cursor::center(textlength, &newbounds);
+        self.bounds    = newbounds;
+        self.scroll.resize(textlength, &self.cursor);
     }
     pub fn view(&mut self, mut stdout: &Stdout) -> io::Result<()> {
         for (textindex, (sourceindex, text)) in 
-            self.wrapped[self.scroll..(self.scroll + self.maxcursor)]
+            self.wrapped[self.scroll.cur..(self.scroll.cur + self.cursor.max)]
                 .iter()
                 .enumerate() 
         {
-            let screencol = self.bounds.loc.x;
-            let screenrow = self.bounds.loc.y + textindex;
+            let screencol = self.bounds.pos.x;
+            let screenrow = self.bounds.pos.y + textindex;
 
             stdout
                 .queue(cursor::MoveTo(screencol as u16, screenrow as u16))?
                 .queue(style::SetColors(self.select(*sourceindex).getcolors()))?
                 .queue(style::Print(text.as_str()))?;
         }
-        stdout.queue(cursor::MoveTo(0, self.cursor as u16))?;
+        stdout.queue(cursor::MoveTo(0, self.cursor.cur as u16))?;
         stdout.flush()?;
         Ok(())
     }
     pub fn movecursordown(&mut self) {
-        if self.cursor < self.maxcursor - 1 {
-            self.cursor += 1;
-        } 
-        else if self.scroll < self.maxscroll {
-            self.scroll += 1;
+        if !self.cursor.movedown(1) {
+            self.scroll.movedown(1);
         }
     }
     pub fn movecursorup(&mut self) {
-        if 0 < self.cursor {
-            self.cursor -= 1;
-        } 
-        else if 0 < self.scroll {
-            self.scroll -= 1;
+        if !self.cursor.moveup(1) {
+            self.scroll.moveup(1);
         }
     }
     pub fn select(&self, i: usize) -> &T {

@@ -4,7 +4,7 @@ use crate::{
     reader::Reader,
     util::Bounds,
     util::Dimension,
-    util::Location,
+    util::Position,
     util::GetColors,
     tag::TextTag, 
     tag::TaggedText
@@ -63,7 +63,7 @@ impl UI {
             .collect();
 
         let size   = Dimension {w: usize::from(w), h: usize::from(h)};
-        let bounds = Bounds {loc: Location {x: 0, y: 0}, dim: size.clone()};
+        let bounds = Bounds {pos: Position {x: 0, y: 0}, dim: size.clone()};
 
         Ok(Self {
             quit:      false,
@@ -79,7 +79,7 @@ impl UI {
                 self.size = Dimension {w: w, h: h};
                 self.tagreader.resize(
                     Bounds {
-                        loc: Location {x: 0, y: 0}, 
+                        pos: Position {x: 0, y: 0}, 
                         dim: self.size.clone()});
             }
             Message::Code(c) => {
