@@ -2,6 +2,22 @@
 
 use crossterm::style::Colors;
 
+#[derive(Clone, Debug)]
+pub struct Bounds {
+    pub loc: Location,
+    pub dim: Dimension,
+}
+#[derive(Clone, Debug)]
+pub struct Location {
+    pub x: usize, 
+    pub y: usize, 
+}
+#[derive(Clone, Debug)]
+pub struct Dimension {
+    pub w: usize, 
+    pub h: usize,
+}
+
 pub trait GetColors {
     fn getcolors(&self) -> Colors;
 }

@@ -1,11 +1,19 @@
 // pager/src/ui
 
 use crate::{
-    reader::Reader, 
+    reader::Reader,
+    util::Bounds,
+    util::Dimension,
+    util::Location,
     util::GetColors,
-    tag::{TextTag, TaggedText}};
+    tag::TextTag, 
+    tag::TaggedText
+};
 use crossterm::{
-    style::{Colors, Color}, 
+    style::Color, 
+    style::Colors, 
+    terminal,
+    QueueableCommand,
     event::{Event, KeyEvent, KeyEventKind, KeyCode}};
 use std::io::{self, Stdout};
 
@@ -45,40 +53,48 @@ pub enum Message {
 pub struct UI {
     quit:      bool,
     tagreader: Reader<TextTag>,
+    size:      Dimension,
 } 
 impl UI {
-    pub fn new(text: String, x: u16, y: u16) -> Result<Self, String> {
+    pub fn new(text: String, w: u16, h: u16) -> Result<Self, String> {
         let text = TaggedText::parse_doc(text.lines().collect())?
             .iter()
             .map(|g| (g.tag.clone(), g.text.to_string()))
             .collect();
 
+        let size   = Dimension {w: usize::from(w), h: usize::from(h)};
+        let bounds = Bounds {loc: Location {x: 0, y: 0}, dim: size.clone()};
+
         Ok(Self {
             quit:      false,
-            tagreader: Reader::new(text, usize::from(x), usize::from(y)),
+            tagreader: Reader::new(text, bounds.clone()),
+            size:      size,
         })
     }
     pub fn update(&mut self, msg: Message) {
         match msg {
-            Message::Resize(x, y) => {
-                self.tagreader.resize(x, y);
-          //      if let Some(&mut dialog) = self.dialog {
-          //          dialog.resize(x, y);
-          //      };
-            }
             Message::Enter => {
+            }
+            Message::Resize(w, h) => {
+                self.size = Dimension {w: w, h: h};
+                self.tagreader.resize(
+                    Bounds {
+                        loc: Location {x: 0, y: 0}, 
+                        dim: self.size.clone()});
             }
             Message::Code(c) => {
                 match c {
-                    UP   => self.tagreader.mvcursorup(),
-                    DOWN => self.tagreader.mvcursordown(),
+                    UP   => self.tagreader.movecursorup(),
+                    DOWN => self.tagreader.movecursordown(),
                     QUIT => self.quit = true,
                     _ => {}
                 }
             }
         }
     }
-    pub fn view(&self, stdout: &Stdout) -> io::Result<()> {
+    pub fn view(&mut self, mut stdout: &Stdout) -> io::Result<()> {
+        stdout
+            .queue(terminal::Clear(terminal::ClearType::All))?;
         self.tagreader.view(stdout)
     }
     // given a relevant Event, return some Message

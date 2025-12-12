@@ -1,88 +1,96 @@
 // pager/src/reader
 
-use crate::util::{GetColors, wrap};
-use std::io::{self, Write, Stdout};
+use crate::{
+    util::GetColors,
+    util::wrap,
+    util::Bounds,
+};
+use std::{
+    cmp::min,
+    io::{self, Write, Stdout},
+};
 use crossterm::{
-    QueueableCommand, cursor, terminal,
-    style};
+    QueueableCommand, cursor, terminal, style
+};
+
+
 
 #[derive(Clone, Debug)]
 pub struct Reader<T> {
-    source:   Vec<(    T, String)>,
-    wrapped:  Vec<(usize, String)>,
-    scroll:   usize,
-    cursor:   usize,
-    mxscroll: usize,
-    maxlines: usize,
+    source:    Vec<(    T, String)>,
+    wrapped:   Vec<(usize, String)>,
+    bounds:    Bounds,
+    scroll:    usize,
+    cursor:    usize,
+    maxscroll: usize,
+    maxcursor: usize,
 } 
 impl<T: Clone + GetColors> Reader<T> {
-    pub fn new(source: Vec<(T, String)>, width: usize, height: usize) -> Self 
-    {
+    pub fn new(source: Vec<(T, String)>, bounds: Bounds) -> Self {
         let source       = source.clone();
-        let wrapped      = Self::wraplist(&source, width);
+        let wrapped      = Self::wraplist(&source, bounds.dim.w);
         let textlength   = wrapped.len();
-        let screenlength = usize::from(height);
-        let (mxscroll, maxlines) = 
-            match textlength < screenlength {
+        let (maxscroll, maxcursor) = 
+            match textlength < bounds.dim.h {
                 true  => (0, textlength),
-                false => (textlength - screenlength, screenlength),
+                false => (textlength - bounds.dim.h, bounds.dim.h),
             };
         return Self {
-            source:   source,
-            wrapped:  wrapped,
-            maxlines: maxlines,
-            mxscroll: mxscroll,
-            cursor:   0,
-            scroll:   0,
+            source:    source,
+            wrapped:   wrapped,
+            maxcursor: maxcursor,
+            maxscroll: maxscroll,
+            cursor:    0,
+            scroll:    0,
+            bounds:    bounds,
         }
     }
-    pub fn resize(&mut self, width: usize, height: usize) {
-        // length of display text determined by screen width
-        self.wrapped     = Self::wraplist(&self.source, width);
+    pub fn resize(&mut self, newbounds: Bounds) {
+        self.wrapped = Self::wraplist(&self.source, newbounds.dim.w);
         let textlength   = self.wrapped.len();
-        let screenlength = height;
-        // screen cannot be filled
-        if textlength < screenlength {
-            self.maxlines  = textlength;
-            self.mxscroll = 0;
-            self.cursor   = (textlength - 1) / 2;
-            self.scroll   = 0;
+        // bounds cannot be filled
+        if textlength < newbounds.dim.h {
+            self.maxcursor = textlength;
+            self.maxscroll = 0;
+            self.cursor    = (textlength - 1) / 2;
+            self.scroll    = 0;
         } 
-        // screen can be filled
+        // bounds can be filled
         else {
-            self.maxlines  = screenlength;
-            self.mxscroll = textlength - screenlength;
-            self.cursor   = (screenlength - 1) / 2;
-            self.scroll   = std::cmp::min(self.scroll, self.mxscroll);
+            self.maxcursor = newbounds.dim.h;
+            self.maxscroll = textlength - newbounds.dim.h;
+            self.cursor    = (newbounds.dim.h - 1) / 2;
+            self.scroll    = min(self.scroll, self.maxscroll);
         }
+        self.bounds = newbounds;
     }
-    pub fn view(&self, mut stdout: &Stdout) -> io::Result<()> {
-        // clear everything
-        stdout.queue(terminal::Clear(terminal::ClearType::All))?;
-        // display text
-        for (screenindex, wrappedpair) in 
-            self.wrapped[self.scroll..(self.scroll + self.maxlines)]
+    pub fn view(&mut self, mut stdout: &Stdout) -> io::Result<()> {
+        for (textindex, (sourceindex, text)) in 
+            self.wrapped[self.scroll..(self.scroll + self.maxcursor)]
                 .iter()
                 .enumerate() 
         {
+            let screencol = self.bounds.loc.x;
+            let screenrow = self.bounds.loc.y + textindex;
+
             stdout
-                .queue(cursor::MoveTo(0, screenindex as u16))?
-                .queue(style::SetColors(self.select(screenindex).getcolors()))?
-                .queue(style::Print(wrappedpair.1.as_str()))?;
+                .queue(cursor::MoveTo(screencol as u16, screenrow as u16))?
+                .queue(style::SetColors(self.select(*sourceindex).getcolors()))?
+                .queue(style::Print(text.as_str()))?;
         }
         stdout.queue(cursor::MoveTo(0, self.cursor as u16))?;
         stdout.flush()?;
         Ok(())
     }
-    pub fn mvcursordown(&mut self) {
-        if self.cursor < self.maxlines - 1 {
+    pub fn movecursordown(&mut self) {
+        if self.cursor < self.maxcursor - 1 {
             self.cursor += 1;
         } 
-        else if self.scroll < self.mxscroll {
+        else if self.scroll < self.maxscroll {
             self.scroll += 1;
         }
     }
-    pub fn mvcursorup(&mut self) {
+    pub fn movecursorup(&mut self) {
         if 0 < self.cursor {
             self.cursor -= 1;
         } 
@@ -90,11 +98,8 @@ impl<T: Clone + GetColors> Reader<T> {
             self.scroll -= 1;
         }
     }
-    pub fn selectundercursor(&self) -> &T {
-        &self.select(self.cursor)
-    }
     pub fn select(&self, i: usize) -> &T {
-        &self.source[self.wrapped[i].0].0
+        &self.source[i].0
     }
     pub fn wraplist(lines: &Vec<(T, String)>, width: usize) 
         -> Vec<(usize, String)>
