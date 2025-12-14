@@ -1,0 +1,13 @@
+
+let mut data  = UIData::new();
+let mut state = data.start();
+
+
+while state != UIState::Quit {
+  state.display(&stdout);
+
+  let event = event::get()?;
+  if let Some(msg) = state.getmsg(event) {
+    state = data.update(msg);
+  }
+}
