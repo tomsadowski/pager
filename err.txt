@@ -1,0 +1,3 @@
+   Compiling pager v0.1.0 (/home/tsadowski/.local/source/pager)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.25s
+     Running `target/debug/pager src/main.rs`

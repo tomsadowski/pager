@@ -9,7 +9,7 @@ mod tag;
 mod widget;
 mod view;
 
-use crate::ui::Data;
+use crate::ui::RootView;
 use crossterm::{QueueableCommand, terminal, cursor, event};
 use std::io::{self, stdout, Write};
 use std::{env, fs};
@@ -22,7 +22,7 @@ fn main() -> io::Result<()> {
     let Some(path) = args.get(1) else {
         panic!("supply path as arg")
     };
-    let mut ui = Data::new(path, usize::from(w), usize::from(h));
+    let mut ui = RootView::new(path, usize::from(w), usize::from(h));
 
     let mut stdout = stdout();
     terminal::enable_raw_mode()?;
