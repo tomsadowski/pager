@@ -52,7 +52,7 @@ impl Cursor {
         }
     }
     pub fn moveup(&mut self, step: usize) -> bool {
-        if self.min <= (self.cur - step) {
+        if (self.min + step) <= self.cur {
             self.cur -= step;
             return true
         } 
@@ -101,7 +101,7 @@ impl Scroll {
         }
     }
     pub fn moveup(&mut self, step: usize) -> bool {
-        if usize::MIN <= (self.cur - step) {
+        if usize::MIN + step <= self.cur {
             self.cur -= step;
             return true
         } 
