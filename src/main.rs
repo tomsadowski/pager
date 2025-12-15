@@ -6,9 +6,7 @@
 
 mod ui;
 mod tag;
-mod selector;
-mod util;
-mod interface;
+mod widget;
 
 use crate::ui::Data;
 use crossterm::{QueueableCommand, terminal, cursor, event};
@@ -23,7 +21,7 @@ fn main() -> io::Result<()> {
     };
     let text   = fs::read_to_string(&path)?;
     let (w, h) = terminal::size()?;
-    let mut ui = Data::new(text, usize::from(w), usize::from(h)).unwrap();
+    let mut ui = Data::new(text, usize::from(w), usize::from(h));
 
     let mut stdout = stdout();
     terminal::enable_raw_mode()?;

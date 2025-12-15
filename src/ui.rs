@@ -1,20 +1,11 @@
 // pager/src/ui
 
-use crate::selector::Selector;
-use crate::util::{Bounds, Dimension, Position};
+use crate::widget::{Bounds, Dimension, Position, Selector};
 use crate::tag::{self, Tag};
-
 use crossterm::{terminal, QueueableCommand};
 use crossterm::style::{Color, Colors};
 use crossterm::event::{Event, KeyEvent, KeyEventKind, KeyCode};
-
 use std::io::{self, Stdout};
-
-const LEFT:  char = 'e';
-const DOWN:  char = 'i';
-const UP:    char = 'o';
-const RIGHT: char = 'n';
-const QUIT:  char = 'q';
 
 #[derive(Clone, Debug)]
 pub enum Action {
@@ -30,12 +21,10 @@ pub enum View {
     History,
     Bookmarks,
 }
-
 #[derive(Clone, Debug)]
 pub struct Data {
     pub size:      Dimension,
     pub view:      View,
-
     pub dialog:    String,
     pub tablist:   Vec<Selector<Tag>>,
     pub tabview:   String,
@@ -43,23 +32,21 @@ pub struct Data {
     pub bookmarks: String,
 } 
 impl Data {
-    pub fn new(text: String, w: usize, h: usize) -> Result<Self, String> {
+    pub fn new(text: String, w: usize, h: usize) -> Self {
         let mut tablist: Vec<Selector<Tag>> = vec![];
         let size     = Dimension {w: w, h: h};
         let bounds   = Bounds {pos: Position {x: 0, y: 0}, dim: size.clone()};
-        let text     = tag::parse_doc(text.lines().collect())?;
+        let text     = tag::parse_doc(text.lines().collect());
         tablist.push(Selector::new(text, bounds.clone()));
-        Ok(
-            Self {
-                size:      size,
-                view:      View::Tab(0),
-                tablist:   tablist,
-                dialog:    String::from(""),
-                tabview:   String::from(""),
-                history:   String::from(""),
-                bookmarks: String::from(""),
-            }
-        )
+        Self {
+            size:      size,
+            view:      View::Tab(0),
+            tablist:   tablist,
+            dialog:    String::from(""),
+            tabview:   String::from(""),
+            history:   String::from(""),
+            bookmarks: String::from(""),
+        }
     }
     pub fn view(&self, mut stdout: &Stdout) -> io::Result<()> {
         stdout.queue(terminal::Clear(terminal::ClearType::All))?;
