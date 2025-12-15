@@ -91,10 +91,13 @@ impl RootView {
                 match msg {
                     TabMsg::Msg(ViewMsg::Dialog(d)) => {
                         self.view = CurrentView::Dialog(d, View::Tab(index));
-                        true
                     }
-                    _ => true
+                    TabMsg::Msg(ViewMsg::Base(View::Quit)) => {
+                        self.view = CurrentView::Base(View::Quit);
+                    }
+                    _ => {}
                 }
+                true
             }
             None => false
         }
