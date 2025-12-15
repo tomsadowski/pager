@@ -9,28 +9,29 @@ use std::io::{self, Stdout};
 #[derive(Clone, Debug)]
 pub enum View {
     Tab(usize),
+    Dialog,
     TabView,
     History,
     Bookmarks,
     Quit,
 }
 #[derive(Clone, Debug)]
-pub enum Action {
-    FollowPath(String),
-    Input,
-    Acknowledge,
-}
-#[derive(Clone, Debug)]
 pub enum ViewMsg {
     Stay,
-    Base(View),
-    Dialog(Dialog),
+    SwitchView(View),
+    MakeDialog(Dialog),
 }
 #[derive(Clone, Debug)]
 pub enum TabMsg {
     CycleLeft,
     CycleRight,
     Msg(ViewMsg),
+}
+#[derive(Clone, Debug)]
+pub enum Action {
+    FollowPath(String),
+    Input(String),
+    Acknowledge,
 }
 #[derive(Clone, Debug)]
 pub enum DialogMsg {
@@ -45,17 +46,26 @@ pub struct Dialog {
     size:   Dimension,
 }
 impl Dialog {
+    pub fn default() -> Self {
+        Self {
+            action: Action::Acknowledge,
+            msg:  String::from(""), 
+            size: Dimension {w: 0, h: 0},
+        }
+    }
     pub fn new(action: Action, msg: String, size: Dimension) -> Self {
         Self {
             action: action,
-            msg: msg, 
-            size: size,
+            msg:    msg, 
+            size:   size,
         }
     }
     pub fn view(&self, mut stdout: &Stdout) -> io::Result<()> {
         stdout
             .queue(terminal::Clear(terminal::ClearType::All))?
-            .queue(cursor::MoveTo(0, 0))?
+            .queue(cursor::MoveTo(0, 3))?
+            .queue(style::Print(format!("{:?}", self.action)))?
+            .queue(cursor::MoveTo(0, 5))?
             .queue(style::Print(self.msg.as_str()))?;
         Ok(())
     }
@@ -66,6 +76,20 @@ impl Dialog {
         match keycode {
             KeyCode::Enter  => {
                 Some(DialogMsg::Proceed(self.action.clone()))
+            }
+            KeyCode::Backspace  => {
+                match &self.action {
+                    Action::Input(_) => {self.msg.pop();}
+                    _ => {}
+                }
+                Some(DialogMsg::Stay)
+            }
+            KeyCode::Char(c)  => {
+                match &self.action {
+                    Action::Input(_) => self.msg.push(c),
+                    _ => {}
+                }
+                Some(DialogMsg::Stay)
             }
             _ => None,
         }
@@ -110,7 +134,7 @@ impl Tab {
     pub fn update(&mut self, keycode: KeyCode) -> Option<TabMsg> {
         match keycode {
             KeyCode::Char('q') => {
-                Some(TabMsg::Msg(ViewMsg::Base(View::Quit)))
+                Some(TabMsg::Msg(ViewMsg::SwitchView(View::Quit)))
             }
             KeyCode::Char('i') => {
                 self.main.movecursordown();
@@ -128,15 +152,15 @@ impl Tab {
                                 Action::Acknowledge,
                                 String::from("you've selected plain old text."),
                                 self.size.clone());
-                        Some(TabMsg::Msg(ViewMsg::Dialog(dialog)))
+                        Some(TabMsg::Msg(ViewMsg::MakeDialog(dialog)))
                     }
                     Tag::Heading => {
                         let dialog = 
                             Dialog::new(
-                                Action::Acknowledge,
-                                String::from("you've selected a heading."),
+                                Action::Input(String::from("type something?")),
+                                String::from("here: "),
                                 self.size.clone());
-                        Some(TabMsg::Msg(ViewMsg::Dialog(dialog)))
+                        Some(TabMsg::Msg(ViewMsg::MakeDialog(dialog)))
                     }
                     Tag::Link(l) => {
                         let dialog = 
@@ -144,7 +168,7 @@ impl Tab {
                                 Action::FollowPath(l.to_string()),
                                 String::from("you've selected a path."),
                                 self.size.clone());
-                        Some(TabMsg::Msg(ViewMsg::Dialog(dialog)))
+                        Some(TabMsg::Msg(ViewMsg::MakeDialog(dialog)))
                     }
                 }
             }

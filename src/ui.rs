@@ -9,15 +9,10 @@ use crossterm::event::{Event, KeyEvent, KeyEventKind, KeyCode};
 use std::io::{self, Write, Stdout};
 
 #[derive(Clone, Debug)]
-pub enum CurrentView {
-    Base(View),
-    Dialog(View),
-}
-
-#[derive(Clone, Debug)]
 pub struct RootView {
     size:      Dimension,
-    view:      CurrentView,
+    lastview:  View,
+    curview:   View,
     tablist:   Vec<Tab>,
     dialog:    Dialog,
     tabview:   String,
@@ -31,7 +26,9 @@ impl RootView {
         tablist.push(Tab::new(&path, size.clone()));
         Self {
             size:      size,
-            view:      CurrentView::Base(View::Tab(0)),
+            lastview:  View::Tab(0),
+            curview:   View::Tab(0),
+            dialog:    Dialog::default(),
             tablist:   tablist,
             tabview:   String::from(""),
             history:   String::from(""),
@@ -39,12 +36,10 @@ impl RootView {
         }
     }
     pub fn view(&self, mut stdout: &Stdout) -> io::Result<()> {
-        match &self.view {
-            CurrentView::Base(v) => match v {
-                View::Tab(i) => self.tablist[*i].view(stdout),
-                _            => Ok(()),
-            }
-            CurrentView::Dialog(_) => self.dialog.view(&stdout),
+        match &self.curview {
+            View::Tab(i) => self.tablist[*i].view(stdout),
+            View::Dialog => self.dialog.view(&stdout),
+            _            => Ok(()),
         }?;
         stdout.flush()?;
         Ok(())
@@ -52,6 +47,7 @@ impl RootView {
     fn resize(&mut self, w: u16, h: u16) {
         self.size = Dimension {w: usize::from(w), h: usize::from(h)};
         self.tablist[0].resize(self.size.clone());
+        self.dialog.resize(self.size.clone());
     }
     pub fn update(&mut self, event: Event) -> bool {
         match event {
@@ -64,24 +60,13 @@ impl RootView {
                 kind: KeyEventKind::Press, 
                 ..
             }) => 
-                match &self.view {
-                    CurrentView::Base(v) => 
-                        match v {
-                            View::Tab(i)    => self.updatetab(*i, keycode),
-                            View::History   => self.updatehistory(keycode),
-                            View::Bookmarks => self.updatebookmarks(keycode),
-                            View::TabView   => self.updatetabview(keycode),
-                            View::Quit      => false,
-                        }
-                    CurrentView::Dialog(v) => {
-                        match self.dialog.update(keycode) {
-                            Some(DialogMsg::Proceed(_)) => {
-                                self.view = CurrentView::Base(v.clone());
-                                true
-                            }
-                            _ => false,
-                        }
-                    }
+                match &self.curview {
+                    View::Tab(i)    => self.updatetab(*i, keycode),
+                    View::History   => self.updatehistory(keycode),
+                    View::Bookmarks => self.updatebookmarks(keycode),
+                    View::TabView   => self.updatetabview(keycode),
+                    View::Dialog    => self.updatedialog(keycode),
+                    View::Quit      => false,
                 }
             _ => false,
         }
@@ -90,18 +75,29 @@ impl RootView {
         match self.tablist[index].update(keycode) {
             Some(msg) => {
                 match msg {
-                    TabMsg::Msg(ViewMsg::Dialog(d)) => {
+                    TabMsg::Msg(ViewMsg::MakeDialog(d)) => {
                         self.dialog = d;
-                        self.view   = CurrentView::Dialog(View::Tab(index));
+                        self.lastview = self.curview.clone();
+                        self.curview  = View::Dialog;
                     }
-                    TabMsg::Msg(ViewMsg::Base(View::Quit)) => {
-                        self.view = CurrentView::Base(View::Quit);
+                    TabMsg::Msg(ViewMsg::SwitchView(View::Quit)) => {
+                        self.curview = View::Quit;
                     }
                     _ => {}
                 }
                 true
             }
             None => false
+        }
+    }
+    pub fn updatedialog(&mut self, keycode: KeyCode) -> bool {
+        match self.dialog.update(keycode) {
+            Some(DialogMsg::Proceed(_)) => {
+                self.curview = self.lastview.clone();
+                true
+            }
+            Some(_) => true,
+            _       => false,
         }
     }
     pub fn updatehistory(&mut self, keycode: KeyCode) -> bool {
@@ -114,8 +110,8 @@ impl RootView {
         false
     }
     pub fn quit(&self) -> bool {
-        match self.view {
-            CurrentView::Base(View::Quit) => true,
+        match self.curview {
+            View::Quit => true,
             _          => false,
         }
     }
