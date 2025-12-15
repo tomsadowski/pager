@@ -7,6 +7,7 @@
 mod ui;
 mod tag;
 mod widget;
+mod view;
 
 use crate::ui::Data;
 use crossterm::{QueueableCommand, terminal, cursor, event};
@@ -15,13 +16,13 @@ use std::{env, fs};
 
 fn main() -> io::Result<()> {
     // set up
+    let (w, h) = terminal::size()?;
     let args: Vec<String> = env::args().collect();
+
     let Some(path) = args.get(1) else {
         panic!("supply path as arg")
     };
-    let text   = fs::read_to_string(&path)?;
-    let (w, h) = terminal::size()?;
-    let mut ui = Data::new(text, usize::from(w), usize::from(h));
+    let mut ui = Data::new(path, usize::from(w), usize::from(h));
 
     let mut stdout = stdout();
     terminal::enable_raw_mode()?;

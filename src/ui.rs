@@ -1,11 +1,12 @@
 // pager/src/ui
 
-use crate::widget::{Bounds, Dimension, Position, Selector};
+use crate::widget::{Bounds, Dimension, Position};
 use crate::tag::{self, Tag};
+use crate::view::{self, Tab};
 use crossterm::{terminal, QueueableCommand};
 use crossterm::style::{Color, Colors};
 use crossterm::event::{Event, KeyEvent, KeyEventKind, KeyCode};
-use std::io::{self, Stdout};
+use std::io::{self, Write, Stdout};
 
 #[derive(Clone, Debug)]
 pub enum Action {
@@ -23,21 +24,19 @@ pub enum View {
 }
 #[derive(Clone, Debug)]
 pub struct Data {
-    pub size:      Dimension,
-    pub view:      View,
-    pub dialog:    String,
-    pub tablist:   Vec<Selector<Tag>>,
-    pub tabview:   String,
-    pub history:   String,
-    pub bookmarks: String,
+    size:      Dimension,
+    view:      View,
+    tablist:   Vec<Tab>,
+    tabview:   String,
+    dialog:    String,
+    history:   String,
+    bookmarks: String,
 } 
 impl Data {
-    pub fn new(text: String, w: usize, h: usize) -> Self {
-        let mut tablist: Vec<Selector<Tag>> = vec![];
-        let size     = Dimension {w: w, h: h};
-        let bounds   = Bounds {pos: Position {x: 0, y: 0}, dim: size.clone()};
-        let text     = tag::parse_doc(text.lines().collect());
-        tablist.push(Selector::new(text, bounds.clone()));
+    pub fn new(path: &String, w: usize, h: usize) -> Self {
+        let mut tablist: Vec<Tab> = vec![];
+        let size = Dimension {w: w, h: h};
+        tablist.push(Tab::new(&path, size.clone()));
         Self {
             size:      size,
             view:      View::Tab(0),
@@ -49,47 +48,45 @@ impl Data {
         }
     }
     pub fn view(&self, mut stdout: &Stdout) -> io::Result<()> {
-        stdout.queue(terminal::Clear(terminal::ClearType::All))?;
         match self.view {
             View::Tab(i) => self.tablist[i].view(stdout),
-            _               => Ok(()),
-        }
+            _            => Ok(()),
+        }?;
+        stdout.flush()?;
+        Ok(())
+    }
+    fn resize(&mut self, w: u16, h: u16) {
+        self.size = Dimension {w: usize::from(w), h: usize::from(h)};
+        self.tablist[0].resize(self.size.clone());
     }
     pub fn update(&mut self, event: Event) -> bool {
         match event {
+            Event::Resize(w, h) => {
+                self.resize(w, h);
+                true
+            }
             Event::Key(KeyEvent {
                 code: keycode, 
                 kind: KeyEventKind::Press, 
                 ..
             }) => {
-                match (keycode, &self.view) {
-                    (KeyCode::Char('i'), View::Tab(i)) => {
-                        self.tablist[*i].movecursordown();
-                        true
-                    }
-                    (KeyCode::Char('o'), View::Tab(i)) => {
-                        self.tablist[*i].movecursorup();
-                        true
-                    }
-                    (KeyCode::Enter, _) => {
-                        true
-                    }
-                    (KeyCode::Char('q'), _) => {
+                match keycode {
+                    KeyCode::Char('q') => {
                         self.view = View::Quit;
                         true
                     }
                     _ => false,
                 }
             }
-            Event::Resize(w, h) => {
-                self.size = Dimension {w: usize::from(w), h: usize::from(h)};
-                self.tablist[0].resize(
-                    Bounds {
-                        pos: Position {x: 0, y: 0}, 
-                        dim: self.size.clone()});
-                true
+            _ => {
+                match &self.view {
+                    View::Tab(i) => {
+                        self.tablist[*i].update(event);
+                        true
+                    }
+                    _ => false,
+                }
             }
-            _ => false,
         }
     }
     pub fn quit(&self) -> bool {

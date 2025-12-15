@@ -4,35 +4,6 @@ use crate::tag::GetColors;
 use crossterm::{QueueableCommand, cursor, terminal, style};
 use std::io::{self, Write, Stdout};
 
-pub fn wrap(line: &str, width: usize) -> Vec<String> {
-    let mut wrapped: Vec<String> = vec![];
-    let mut start  = 0;
-    let mut end    = width;
-    let     length = line.len();
-    while end < length {
-        let longest = &line[start..end];
-        match longest.rsplit_once(' ') {
-            Some((a, b)) => {
-                let shortest = match a.len() {
-                    0 => b,
-                    _ => a,
-                };
-                wrapped.push(String::from(shortest));
-                start += shortest.len();
-                end    = start + width;
-            }
-            None => {
-                wrapped.push(String::from(longest));
-                start = end;
-                end  += width;
-            }
-        }
-    }
-    if start < length {
-        wrapped.push(String::from(&line[start..length]));
-    }
-    wrapped
-}
 #[derive(Clone, Debug)]
 pub struct Bounds {
     pub pos: Position,
@@ -146,6 +117,35 @@ impl Scroll {
         false
     }
 }
+pub fn wrap(line: &str, width: usize) -> Vec<String> {
+    let mut wrapped: Vec<String> = vec![];
+    let mut start  = 0;
+    let mut end    = width;
+    let     length = line.len();
+    while end < length {
+        let longest = &line[start..end];
+        match longest.rsplit_once(' ') {
+            Some((a, b)) => {
+                let shortest = match a.len() {
+                    0 => b,
+                    _ => a,
+                };
+                wrapped.push(String::from(shortest));
+                start += shortest.len();
+                end    = start + width;
+            }
+            None => {
+                wrapped.push(String::from(longest));
+                start = end;
+                end  += width;
+            }
+        }
+    }
+    if start < length {
+        wrapped.push(String::from(&line[start..length]));
+    }
+    wrapped
+}
 #[derive(Clone, Debug)]
 pub struct Selector<T> {
     bounds:  Bounds,
@@ -190,7 +190,6 @@ impl<T: Clone + GetColors> Selector<T> {
                 .queue(style::Print(text.as_str()))?;
         }
         stdout.queue(cursor::MoveTo(0, self.cursor.cur as u16))?;
-        stdout.flush()?;
         Ok(())
     }
     pub fn movecursordown(&mut self) {
