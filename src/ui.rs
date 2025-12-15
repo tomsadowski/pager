@@ -11,7 +11,7 @@ use std::io::{self, Write, Stdout};
 #[derive(Clone, Debug)]
 pub enum CurrentView {
     Base(View),
-    Dialog(Dialog, View),
+    Dialog(View),
 }
 
 #[derive(Clone, Debug)]
@@ -19,6 +19,7 @@ pub struct RootView {
     size:      Dimension,
     view:      CurrentView,
     tablist:   Vec<Tab>,
+    dialog:    Dialog,
     tabview:   String,
     history:   String,
     bookmarks: String,
@@ -43,7 +44,7 @@ impl RootView {
                 View::Tab(i) => self.tablist[*i].view(stdout),
                 _            => Ok(()),
             }
-            CurrentView::Dialog(d, _) => d.view(&stdout),
+            CurrentView::Dialog(_) => self.dialog.view(&stdout),
         }?;
         stdout.flush()?;
         Ok(())
@@ -72,8 +73,8 @@ impl RootView {
                             View::TabView   => self.updatetabview(keycode),
                             View::Quit      => false,
                         }
-                    CurrentView::Dialog(d, v) => {
-                        match d.update(keycode) {
+                    CurrentView::Dialog(v) => {
+                        match self.dialog.update(keycode) {
                             Some(DialogMsg::Proceed(_)) => {
                                 self.view = CurrentView::Base(v.clone());
                                 true
@@ -90,7 +91,8 @@ impl RootView {
             Some(msg) => {
                 match msg {
                     TabMsg::Msg(ViewMsg::Dialog(d)) => {
-                        self.view = CurrentView::Dialog(d, View::Tab(index));
+                        self.dialog = d;
+                        self.view   = CurrentView::Dialog(View::Tab(index));
                     }
                     TabMsg::Msg(ViewMsg::Base(View::Quit)) => {
                         self.view = CurrentView::Base(View::Quit);

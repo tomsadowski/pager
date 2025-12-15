@@ -235,7 +235,8 @@ impl<T: Clone + GetColors> Selector<T> {
         }
     }
     pub fn selectundercursor(&self) -> &T {
-        &self.source[self.cursor.cur].0
+        let index = self.cursor.cur - self.bounds.pos.y;
+        &self.source[self.display[index].0].0
     }
     pub fn select(&self, i: usize) -> &T {
         &self.source[i].0

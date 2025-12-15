@@ -17,6 +17,7 @@ pub enum View {
 #[derive(Clone, Debug)]
 pub enum Action {
     FollowPath(String),
+    Input,
     Acknowledge,
 }
 #[derive(Clone, Debug)]
@@ -61,7 +62,7 @@ impl Dialog {
     pub fn resize(&mut self, dim: Dimension) {
         self.size = dim.clone();
     }
-    pub fn update(&self, keycode: KeyCode) -> Option<DialogMsg> {
+    pub fn update(&mut self, keycode: KeyCode) -> Option<DialogMsg> {
         match keycode {
             KeyCode::Enter  => {
                 Some(DialogMsg::Proceed(self.action.clone()))
