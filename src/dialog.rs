@@ -58,8 +58,14 @@ impl Dialog {
     }
     pub fn update(&mut self, keycode: KeyCode) -> Option<DialogMsg> {
         match (&mut self.input, keycode) {
+            (InputType::Choose(_), KeyCode::Enter)  => {
+                Some(DialogMsg::None)
+            }
             (_, KeyCode::Enter)  => {
                 Some(DialogMsg::Submit)
+            }
+            (_, KeyCode::Esc)  => {
+                Some(DialogMsg::Cancel)
             }
             (InputType::Input(v), KeyCode::Backspace) => {
                 v.pop();
@@ -68,6 +74,14 @@ impl Dialog {
             (InputType::Input(v), KeyCode::Char(c))  => {
                 v.push(c);
                 Some(DialogMsg::None)
+            }
+            (InputType::Choose(v), KeyCode::Char(c))  => {
+                let chars: Vec<char> = v.iter().map(|e| e.0).collect();
+                match chars.contains(&c) {
+                    true => Some(DialogMsg::Submit),
+                    false => None,
+
+                }
             }
             _ => None,
         }
