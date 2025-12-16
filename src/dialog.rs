@@ -1,75 +1,73 @@
 // pager/src/dialog
 
-use crate::widget::{Bounds, Dimension, Position, Selector};
-use crate::tag::{self, Tag};
+use crate::widget::{Bounds};
 use crossterm::{QueueableCommand, cursor, terminal, style};
-use crossterm::event::{Event, KeyEvent, KeyEventKind, KeyCode};
-use std::{env, fs};
+use crossterm::event::{KeyCode};
 use std::io::{self, Stdout};
 
 #[derive(Clone, Debug)]
 pub enum Action {
+    None,
     FollowPath(String),
-    Input(String),
-    Acknowledge,
 }
 #[derive(Clone, Debug)]
 pub enum DialogMsg {
-    Stay,
-    Back,
-    Proceed(Action),
+    None,
+    Cancel,
+    Submit,
+}
+#[derive(Clone, Debug)]
+pub enum InputType {
+    Choose(Vec<(char, String)>),
+    Input(Vec<char>),
+    None,
 }
 #[derive(Clone, Debug)]
 pub struct Dialog {
+    size:   Bounds,
     action: Action,
-    msg:    String,
-    size:   Dimension,
+    prompt: String,
+    input:  InputType,
 }
 impl Dialog {
-    pub fn default() -> Self {
-        Self {
-            action: Action::Acknowledge,
-            msg:  String::from(""), 
-            size: Dimension {w: 0, h: 0},
-        }
-    }
-    pub fn new(action: Action, msg: String, size: Dimension) -> Self {
+    pub fn new(action: Action, 
+               prompt: String, 
+               input:  InputType, 
+               size:   Bounds) -> Self 
+    {
         Self {
             action: action,
-            msg:    msg, 
+            prompt: prompt, 
+            input:  input,
             size:   size,
         }
     }
     pub fn view(&self, mut stdout: &Stdout) -> io::Result<()> {
         stdout
             .queue(terminal::Clear(terminal::ClearType::All))?
-            .queue(cursor::MoveTo(0, 3))?
+            .queue(cursor::MoveTo(0, 2))?
             .queue(style::Print(format!("{:?}", self.action)))?
-            .queue(cursor::MoveTo(0, 5))?
-            .queue(style::Print(self.msg.as_str()))?;
+            .queue(cursor::MoveTo(0, 4))?
+            .queue(style::Print(self.prompt.as_str()))?
+            .queue(cursor::MoveTo(0, 6))?
+            .queue(style::Print(format!("{:?}", self.input)))?;
         Ok(())
     }
-    pub fn resize(&mut self, dim: Dimension) {
-        self.size = dim.clone();
+    pub fn resize(&mut self, bounds: Bounds) {
+        self.size = bounds.clone();
     }
     pub fn update(&mut self, keycode: KeyCode) -> Option<DialogMsg> {
-        match keycode {
-            KeyCode::Enter  => {
-                Some(DialogMsg::Proceed(self.action.clone()))
+        match (&mut self.input, keycode) {
+            (_, KeyCode::Enter)  => {
+                Some(DialogMsg::Submit)
             }
-            KeyCode::Backspace  => {
-                match &self.action {
-                    Action::Input(_) => {self.msg.pop();}
-                    _ => {}
-                }
-                Some(DialogMsg::Stay)
+            (InputType::Input(v), KeyCode::Backspace) => {
+                v.pop();
+                Some(DialogMsg::None)
             }
-            KeyCode::Char(c)  => {
-                match &self.action {
-                    Action::Input(_) => self.msg.push(c),
-                    _ => {}
-                }
-                Some(DialogMsg::Stay)
+            (InputType::Input(v), KeyCode::Char(c))  => {
+                v.push(c);
+                Some(DialogMsg::None)
             }
             _ => None,
         }

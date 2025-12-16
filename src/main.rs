@@ -1,7 +1,7 @@
 // pager/src/main
 
 #![allow(unused_variables)]
-#![allow(unused_imports)]
+//#![allow(unused_imports)]
 #![allow(dead_code)]
 
 mod ui;
@@ -13,7 +13,7 @@ mod dialog;
 use crate::ui::UI;
 use crossterm::{QueueableCommand, terminal, cursor, event};
 use std::io::{self, stdout, Write};
-use std::{env, fs};
+use std::{env};
 
 fn main() -> io::Result<()> {
     // set up

@@ -1,21 +1,15 @@
 // pager/src/ui
 
-use crate::tag::{self, Tag};
-use crate::widget::{Bounds, Dimension, Position};
-use crate::view::{Tab, TabMsg, ViewMsg, View};
-use crate::dialog::{Dialog, DialogMsg, Action};
-use crossterm::{terminal, QueueableCommand};
-use crossterm::style::{Color, Colors};
-use crossterm::event::{Event, KeyEvent, KeyEventKind, KeyCode};
+use crate::widget::{Dimension};
+use crate::view::{Tab, View};
+use crossterm::event::{Event, KeyEvent, KeyEventKind, KeyCode, KeyModifiers};
 use std::io::{self, Write, Stdout};
 
 #[derive(Clone, Debug)]
 pub struct UI {
     size:      Dimension,
-    lastview:  View,
-    curview:   View,
+    view:      View,
     tablist:   Vec<Tab>,
-    dialog:    Dialog,
     tabview:   String,
     history:   String,
     bookmarks: String,
@@ -27,9 +21,7 @@ impl UI {
         tablist.push(Tab::new(&path, size.clone()));
         Self {
             size:      size,
-            lastview:  View::Tab(0),
-            curview:   View::Tab(0),
-            dialog:    Dialog::default(),
+            view:      View::Tab(0),
             tablist:   tablist,
             tabview:   String::from(""),
             history:   String::from(""),
@@ -37,9 +29,8 @@ impl UI {
         }
     }
     pub fn view(&self, mut stdout: &Stdout) -> io::Result<()> {
-        match &self.curview {
+        match &self.view {
             View::Tab(i) => self.tablist[*i].view(stdout),
-            View::Dialog => self.dialog.view(&stdout),
             _            => Ok(()),
         }?;
         stdout.flush()?;
@@ -48,7 +39,6 @@ impl UI {
     fn resize(&mut self, w: u16, h: u16) {
         self.size = Dimension {w: usize::from(w), h: usize::from(h)};
         self.tablist[0].resize(self.size.clone());
-        self.dialog.resize(self.size.clone());
     }
     pub fn update(&mut self, event: Event) -> bool {
         match event {
@@ -57,16 +47,24 @@ impl UI {
                 true
             }
             Event::Key(KeyEvent {
+                code: KeyCode::Char('c'),
+                modifiers: KeyModifiers::CONTROL,
+                kind: KeyEventKind::Press, 
+                ..
+            }) => {
+                self.view = View::Quit;
+                true
+            }
+            Event::Key(KeyEvent {
                 code: keycode, 
                 kind: KeyEventKind::Press, 
                 ..
             }) => 
-                match &self.curview {
+                match &self.view {
                     View::Tab(i)    => self.updatetab(*i, keycode),
                     View::History   => self.updatehistory(keycode),
                     View::Bookmarks => self.updatebookmarks(keycode),
                     View::TabView   => self.updatetabview(keycode),
-                    View::Dialog    => self.updatedialog(keycode),
                     View::Quit      => false,
                 }
             _ => false,
@@ -74,31 +72,10 @@ impl UI {
     }
     pub fn updatetab(&mut self, index: usize, keycode: KeyCode) -> bool {
         match self.tablist[index].update(keycode) {
-            Some(msg) => {
-                match msg {
-                    TabMsg::Msg(ViewMsg::MakeDialog(d)) => {
-                        self.dialog = d;
-                        self.lastview = self.curview.clone();
-                        self.curview  = View::Dialog;
-                    }
-                    TabMsg::Msg(ViewMsg::Switch(View::Quit)) => {
-                        self.curview = View::Quit;
-                    }
-                    _ => {}
-                }
+            Some(_msg) => {
                 true
             }
             None => false
-        }
-    }
-    pub fn updatedialog(&mut self, keycode: KeyCode) -> bool {
-        match self.dialog.update(keycode) {
-            Some(DialogMsg::Proceed(_)) => {
-                self.curview = self.lastview.clone();
-                true
-            }
-            Some(_) => true,
-            _       => false,
         }
     }
     pub fn updatehistory(&mut self, keycode: KeyCode) -> bool {
@@ -111,7 +88,7 @@ impl UI {
         false
     }
     pub fn quit(&self) -> bool {
-        match self.curview {
+        match self.view {
             View::Quit => true,
             _          => false,
         }

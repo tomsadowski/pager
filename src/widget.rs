@@ -1,23 +1,47 @@
 // pager/src/widget
 
 use crate::tag::GetColors;
-use crossterm::{QueueableCommand, cursor, terminal, style};
-use std::io::{self, Write, Stdout};
+use crossterm::{QueueableCommand, cursor, style};
+use std::io::{self, Stdout};
 
 #[derive(Clone, Debug)]
 pub struct Bounds {
     pub pos: Position,
     pub dim: Dimension,
 }
+impl Bounds {
+    pub fn default() -> Self {
+        Self {
+            pos: Position::default(),
+            dim: Dimension::default(),
+        }
+    }
+    pub fn fromdimension(dim: &Dimension) -> Self {
+        Self {
+            pos: Position::default(),
+            dim: Dimension {w: dim.w, h: dim.h},
+        }
+    }
+}
 #[derive(Clone, Debug)]
 pub struct Position {
     pub x: usize, 
     pub y: usize, 
 }
+impl Position {
+    pub fn default() -> Self {
+        Self {x: 0, y: 0}
+    }
+}
 #[derive(Clone, Debug)]
 pub struct Dimension {
     pub w: usize, 
     pub h: usize,
+}
+impl Dimension {
+    pub fn default() -> Self {
+        Self {w: 0, h: 0}
+    }
 }
 #[derive(Clone, Debug)]
 pub struct Cursor {
