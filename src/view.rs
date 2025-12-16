@@ -1,5 +1,7 @@
+// pager/src/view
 
 use crate::widget::{Bounds, Dimension, Position, Selector};
+use crate::dialog::{Dialog, Action, DialogMsg};
 use crate::tag::{self, Tag};
 use crossterm::{QueueableCommand, cursor, terminal, style};
 use crossterm::event::{Event, KeyEvent, KeyEventKind, KeyCode};
@@ -18,7 +20,7 @@ pub enum View {
 #[derive(Clone, Debug)]
 pub enum ViewMsg {
     Stay,
-    SwitchView(View),
+    Switch(View),
     MakeDialog(Dialog),
 }
 #[derive(Clone, Debug)]
@@ -26,74 +28,6 @@ pub enum TabMsg {
     CycleLeft,
     CycleRight,
     Msg(ViewMsg),
-}
-#[derive(Clone, Debug)]
-pub enum Action {
-    FollowPath(String),
-    Input(String),
-    Acknowledge,
-}
-#[derive(Clone, Debug)]
-pub enum DialogMsg {
-    Stay,
-    Back,
-    Proceed(Action),
-}
-#[derive(Clone, Debug)]
-pub struct Dialog {
-    action: Action,
-    msg:    String,
-    size:   Dimension,
-}
-impl Dialog {
-    pub fn default() -> Self {
-        Self {
-            action: Action::Acknowledge,
-            msg:  String::from(""), 
-            size: Dimension {w: 0, h: 0},
-        }
-    }
-    pub fn new(action: Action, msg: String, size: Dimension) -> Self {
-        Self {
-            action: action,
-            msg:    msg, 
-            size:   size,
-        }
-    }
-    pub fn view(&self, mut stdout: &Stdout) -> io::Result<()> {
-        stdout
-            .queue(terminal::Clear(terminal::ClearType::All))?
-            .queue(cursor::MoveTo(0, 3))?
-            .queue(style::Print(format!("{:?}", self.action)))?
-            .queue(cursor::MoveTo(0, 5))?
-            .queue(style::Print(self.msg.as_str()))?;
-        Ok(())
-    }
-    pub fn resize(&mut self, dim: Dimension) {
-        self.size = dim.clone();
-    }
-    pub fn update(&mut self, keycode: KeyCode) -> Option<DialogMsg> {
-        match keycode {
-            KeyCode::Enter  => {
-                Some(DialogMsg::Proceed(self.action.clone()))
-            }
-            KeyCode::Backspace  => {
-                match &self.action {
-                    Action::Input(_) => {self.msg.pop();}
-                    _ => {}
-                }
-                Some(DialogMsg::Stay)
-            }
-            KeyCode::Char(c)  => {
-                match &self.action {
-                    Action::Input(_) => self.msg.push(c),
-                    _ => {}
-                }
-                Some(DialogMsg::Stay)
-            }
-            _ => None,
-        }
-    }
 }
 #[derive(Clone, Debug)]
 pub struct Tab {
@@ -134,7 +68,7 @@ impl Tab {
     pub fn update(&mut self, keycode: KeyCode) -> Option<TabMsg> {
         match keycode {
             KeyCode::Char('q') => {
-                Some(TabMsg::Msg(ViewMsg::SwitchView(View::Quit)))
+                Some(TabMsg::Msg(ViewMsg::Switch(View::Quit)))
             }
             KeyCode::Char('i') => {
                 self.main.movecursordown();

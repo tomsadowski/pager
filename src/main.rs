@@ -8,8 +8,9 @@ mod ui;
 mod tag;
 mod widget;
 mod view;
+mod dialog;
 
-use crate::ui::RootView;
+use crate::ui::UI;
 use crossterm::{QueueableCommand, terminal, cursor, event};
 use std::io::{self, stdout, Write};
 use std::{env, fs};
@@ -22,7 +23,7 @@ fn main() -> io::Result<()> {
     let Some(path) = args.get(1) else {
         panic!("supply path as arg")
     };
-    let mut ui = RootView::new(path, usize::from(w), usize::from(h));
+    let mut ui = UI::new(path, usize::from(w), usize::from(h));
 
     let mut stdout = stdout();
     terminal::enable_raw_mode()?;

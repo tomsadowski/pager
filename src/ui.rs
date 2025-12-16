@@ -1,15 +1,16 @@
 // pager/src/ui
 
-use crate::widget::{Bounds, Dimension, Position};
 use crate::tag::{self, Tag};
-use crate::view::{self, Dialog, DialogMsg, Tab, TabMsg, ViewMsg, View, Action};
+use crate::widget::{Bounds, Dimension, Position};
+use crate::view::{Tab, TabMsg, ViewMsg, View};
+use crate::dialog::{Dialog, DialogMsg, Action};
 use crossterm::{terminal, QueueableCommand};
 use crossterm::style::{Color, Colors};
 use crossterm::event::{Event, KeyEvent, KeyEventKind, KeyCode};
 use std::io::{self, Write, Stdout};
 
 #[derive(Clone, Debug)]
-pub struct RootView {
+pub struct UI {
     size:      Dimension,
     lastview:  View,
     curview:   View,
@@ -19,7 +20,7 @@ pub struct RootView {
     history:   String,
     bookmarks: String,
 } 
-impl RootView {
+impl UI {
     pub fn new(path: &String, w: usize, h: usize) -> Self {
         let mut tablist: Vec<Tab> = vec![];
         let size = Dimension {w: w, h: h};
@@ -80,7 +81,7 @@ impl RootView {
                         self.lastview = self.curview.clone();
                         self.curview  = View::Dialog;
                     }
-                    TabMsg::Msg(ViewMsg::SwitchView(View::Quit)) => {
+                    TabMsg::Msg(ViewMsg::Switch(View::Quit)) => {
                         self.curview = View::Quit;
                     }
                     _ => {}
