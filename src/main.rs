@@ -1,13 +1,13 @@
 // pager/src/main
 
 #![allow(unused_variables)]
-//#![allow(unused_imports)]
 #![allow(dead_code)]
 
 mod ui;
 mod tag;
 mod widget;
 mod view;
+mod tabs;
 mod dialog;
 
 use crate::ui::UI;

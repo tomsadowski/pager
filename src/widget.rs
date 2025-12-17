@@ -143,9 +143,9 @@ impl Scroll {
 }
 pub fn wrap(line: &str, width: usize) -> Vec<String> {
     let mut wrapped: Vec<String> = vec![];
-    let mut start  = 0;
-    let mut end    = width;
-    let     length = line.len();
+    let mut start = 0;
+    let mut end = width;
+    let length = line.len();
     while end < length {
         let longest = &line[start..end];
         match longest.rsplit_once(' ') {
@@ -156,12 +156,12 @@ pub fn wrap(line: &str, width: usize) -> Vec<String> {
                 };
                 wrapped.push(String::from(shortest));
                 start += shortest.len();
-                end    = start + width;
+                end = start + width;
             }
             None => {
                 wrapped.push(String::from(longest));
                 start = end;
-                end  += width;
+                end += width;
             }
         }
     }
@@ -194,48 +194,49 @@ pub fn cut(line: &str, mut width: usize) -> String {
 }
 #[derive(Clone, Debug)]
 pub struct Selector<T> {
-    wrap:    bool,
-    bounds:  Bounds,
-    cursor:  Cursor,
-    scroll:  Scroll,
-    source:  Vec<(    T, String)>,
+    wrap: bool,
+    bounds: Bounds,
+    cursor: Cursor,
+    scroll: Scroll,
+    source: Vec<(T, String)>,
     display: Vec<(usize, String)>,
 } 
 impl<T: Clone + GetColors> Selector<T> {
     pub fn new(source: Vec<(T, String)>, wrap: bool, bounds: Bounds) -> Self {
-        let source     = source.clone();
-        let display    = 
+        let source = source.clone();
+        let display = 
             match wrap {
-                true  => Self::wraplist(&source, bounds.dim.w),
+                true => Self::wraplist(&source, bounds.dim.w),
                 false => Self::cutlist(&source, bounds.dim.w),
             };
         let textlength = display.len();
-        let cursor     = Cursor::top(textlength, &bounds);
-        let scroll     = Scroll::new(textlength, cursor.range());
+        let cursor = Cursor::top(textlength, &bounds);
+        let scroll = Scroll::new(textlength, cursor.range());
         return Self {
-            wrap:    wrap,
-            source:  source,
+            wrap: wrap,
+            source: source,
             display: display,
-            cursor:  cursor,
-            scroll:  scroll,
-            bounds:  bounds,
+            cursor: cursor,
+            scroll: scroll,
+            bounds: bounds,
         }
     }
     pub fn resize(&mut self, newbounds: Bounds) {
         self.display = 
             match self.wrap {
-                true  => Self::wraplist(&self.source, newbounds.dim.w),
+                true => Self::wraplist(&self.source, newbounds.dim.w),
                 false => Self::cutlist(&self.source, newbounds.dim.w),
             };
         let textlength = self.display.len();
-        self.cursor    = Cursor::center(textlength, &newbounds);
-        self.bounds    = newbounds;
+        self.cursor = Cursor::center(textlength, &newbounds);
+        self.bounds = newbounds;
         self.scroll.resize(textlength, self.cursor.range());
     }
     pub fn view(&self, mut stdout: &Stdout) -> io::Result<()> {
         let screencol = self.bounds.pos.x as u16;
         for (textindex, (sourceindex, text)) in 
-            self.display[self.scroll.cur..(self.scroll.cur + self.cursor.range())]
+            self.display
+                [self.scroll.cur..(self.scroll.cur + self.cursor.range())]
                 .iter()
                 .enumerate() 
         {

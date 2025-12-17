@@ -18,64 +18,64 @@ pub enum DialogMsg {
 }
 #[derive(Clone, Debug)]
 pub enum InputType {
+    None,
     Choose((char, Vec<(char, String)>)),
     Input(Vec<char>),
-    None,
 }
 #[derive(Clone, Debug)]
 pub struct Dialog {
-    size:   Bounds,
-    prompt: String,
     pub action: Action,
-    pub input:  InputType,
+    pub input: InputType,
+    bounds: Bounds,
+    prompt: String,
 }
 impl Dialog {
     pub fn new(action: Action, 
                prompt: String, 
-               input:  InputType, 
-               size:   Bounds) -> Self 
+               input: InputType, 
+               bounds: &Bounds) -> Self 
     {
         Self {
             action: action,
             prompt: prompt, 
-            input:  input,
-            size:   size,
+            input: input,
+            bounds: bounds.clone(),
         }
     }
     pub fn view(&self, mut stdout: &Stdout) -> io::Result<()> {
+        let start = self.bounds.pos.y as u16;
         stdout
-            .queue(terminal::Clear(terminal::ClearType::All))?
-            .queue(cursor::MoveTo(0, 2))?
+            .queue(cursor::MoveTo(0, start))?
             .queue(style::Print(format!("{:?}", self.action)))?
-            .queue(cursor::MoveTo(0, 4))?
+            .queue(cursor::MoveTo(0, start + 2))?
             .queue(style::Print(self.prompt.as_str()))?
-            .queue(cursor::MoveTo(0, 6))?
+            .queue(cursor::MoveTo(0, start + 4))?
             .queue(style::Print(format!("{:?}", self.input)))?;
         Ok(())
     }
-    pub fn resize(&mut self, bounds: Bounds) {
-        self.size = bounds.clone();
+    pub fn resize(&mut self, bounds: &Bounds) {
+        self.bounds = bounds.clone();
     }
     pub fn update(&mut self, keycode: KeyCode) -> Option<DialogMsg> {
         match (&mut self.input, keycode) {
-            (InputType::Choose(_), KeyCode::Enter)  => {
+            (InputType::Choose(_), KeyCode::Enter) => {
                 Some(DialogMsg::None)
             }
-            (_, KeyCode::Enter)  => {
+            (_, KeyCode::Enter) => {
                 Some(DialogMsg::Submit)
             }
-            (_, KeyCode::Esc)  => {
+            (_, KeyCode::Esc) => {
                 Some(DialogMsg::Cancel)
             }
             (InputType::Input(v), KeyCode::Backspace) => {
                 v.pop();
                 Some(DialogMsg::None)
             }
-            (InputType::Input(v), KeyCode::Char(c))  => {
+            (InputType::Input(v), KeyCode::Char(c)) => {
                 v.push(c);
                 Some(DialogMsg::None)
             }
-            (InputType::Choose(t), KeyCode::Char(c))  => {
+            (InputType::Choose(t), KeyCode::Char(c)) => {
                 let chars: Vec<char> = t.1.iter().map(|e| e.0).collect();
                 match chars.contains(&c) {
                     true => {
