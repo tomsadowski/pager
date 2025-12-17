@@ -13,7 +13,7 @@ impl GetColors for Tag {
                 Color::Rgb {r:   0,  g:   0,  b:    0},
             ),
             Tag::Text => Colors::new(
-                Color::Rgb {r: 225,  g: 180,  b: 105},
+                Color::Rgb {r: 180,  g: 180,  b: 180},
                 Color::Rgb {r:   0,  g:   0,  b:   0},
             ),
             Tag::Link(_) => Colors::new(

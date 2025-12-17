@@ -3,8 +3,9 @@
 use crate::widget::{Bounds, Dimension, Position, Selector};
 use crate::dialog::{Dialog, InputType, DialogMsg, Action};
 use crate::tag::{self, Tag};
-use crossterm::{QueueableCommand, cursor, terminal, style};
+use crossterm::{QueueableCommand, cursor, terminal};
 use crossterm::event::{KeyCode};
+use crossterm::style::{self, Colors, Color};
 use std::{fs};
 use std::io::{self, Stdout};
 
@@ -42,7 +43,7 @@ impl Tab {
         let src    = fs::read_to_string(&path).unwrap();
         let text   = tag::parse_doc(src.lines().collect());
         let bounds = Bounds {
-            pos: Position  {x: 0, y: 1}, 
+            pos: Position  {x: 0, y: 2}, 
             dim: Dimension {w: dim.w, h: dim.h - 1},
         };
         Self {
@@ -55,8 +56,14 @@ impl Tab {
     pub fn view(&self, mut stdout: &Stdout) -> io::Result<()> {
         stdout
             .queue(terminal::Clear(terminal::ClearType::All))?
+            .queue(style::SetColors(Colors::new(
+                Color::Rgb {r: 180,  g: 180,  b: 180},
+                Color::Rgb {r:   0,  g:   0,  b:   0})))?
             .queue(cursor::MoveTo(0, 0))?
-            .queue(style::Print(self.path.as_str()))?;
+            .queue(style::Print(self.path.as_str()))?
+            .queue(cursor::MoveTo(0, 1))?
+            .queue(style::Print("----------------------------------------"))?
+            .queue(cursor::MoveTo(0, 2))?;
         match self.dialogstack.last() {
             Some(d) => d.view(stdout),
             _       => self.main.view(stdout),
@@ -66,7 +73,7 @@ impl Tab {
         self.size = dim.clone();
         let bounds = 
             Bounds {
-                pos: Position  {x: 0, y: 1}, 
+                pos: Position  {x: 0, y: 2}, 
                 dim: Dimension {w: dim.w, h: dim.h - 1}
             };
         self.main.resize(bounds.clone());
@@ -101,7 +108,7 @@ impl Tab {
                 Some(_) => {
                     return Some(TabMsg::Msg(ViewMsg::None))
                 }
-                _ => return None
+               _ => return None
             }
         }
         match keycode {
@@ -119,7 +126,7 @@ impl Tab {
             KeyCode::Char('n') => {
                 Some(TabMsg::CycleRight)
             }
-            KeyCode::Enter  => {
+            KeyCode::Enter => {
                 let dialog = match self.main.selectundercursor() {
                     Tag::Text => {
                         Dialog::new(
