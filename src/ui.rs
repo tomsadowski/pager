@@ -1,7 +1,8 @@
 // pager/src/ui
 
 use crate::widget::{Dimension};
-use crate::view::{Tab, View};
+use crate::dialog::{Action};
+use crate::view::{Tab, View, TabMsg, ViewMsg};
 use crossterm::event::{Event, KeyEvent, KeyEventKind, KeyCode, KeyModifiers};
 use std::io::{self, Write, Stdout};
 
@@ -38,7 +39,9 @@ impl UI {
     }
     fn resize(&mut self, w: u16, h: u16) {
         self.size = Dimension {w: usize::from(w), h: usize::from(h)};
-        self.tablist[0].resize(self.size.clone());
+        for tab in self.tablist.iter_mut() {
+            tab.resize(self.size.clone());
+        }
     }
     pub fn update(&mut self, event: Event) -> bool {
         match event {
@@ -70,12 +73,31 @@ impl UI {
             _ => false,
         }
     }
-    pub fn updatetab(&mut self, index: usize, keycode: KeyCode) -> bool {
+    pub fn updatetab(&mut self, mut index: usize, keycode: KeyCode) -> bool {
         match self.tablist[index].update(keycode) {
-            Some(_msg) => {
+            Some(TabMsg::Msg(ViewMsg::FollowPath(p))) => {
+                self.tablist.push(Tab::new(&p, self.size.clone()));
+                self.view = View::Tab(self.tablist.len() - 1);
                 true
             }
-            None => false
+            Some(TabMsg::CycleLeft) => {
+                match index == 0 {
+                    true  => index = self.tablist.len() - 1,
+                    false => index -= 1,
+                }
+                self.view = View::Tab(index);
+                true
+            }
+            Some(TabMsg::CycleRight) => {
+                match index == self.tablist.len() - 1 {
+                    true  => index = 0,
+                    false => index += 1,
+                }
+                self.view = View::Tab(index);
+                true
+            }
+            Some(_) => true,
+            None => false,
         }
     }
     pub fn updatehistory(&mut self, keycode: KeyCode) -> bool {

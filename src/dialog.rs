@@ -18,16 +18,16 @@ pub enum DialogMsg {
 }
 #[derive(Clone, Debug)]
 pub enum InputType {
-    Choose(Vec<(char, String)>),
+    Choose((char, Vec<(char, String)>)),
     Input(Vec<char>),
     None,
 }
 #[derive(Clone, Debug)]
 pub struct Dialog {
     size:   Bounds,
-    action: Action,
     prompt: String,
-    input:  InputType,
+    pub action: Action,
+    pub input:  InputType,
 }
 impl Dialog {
     pub fn new(action: Action, 
@@ -75,10 +75,13 @@ impl Dialog {
                 v.push(c);
                 Some(DialogMsg::None)
             }
-            (InputType::Choose(v), KeyCode::Char(c))  => {
-                let chars: Vec<char> = v.iter().map(|e| e.0).collect();
+            (InputType::Choose(t), KeyCode::Char(c))  => {
+                let chars: Vec<char> = t.1.iter().map(|e| e.0).collect();
                 match chars.contains(&c) {
-                    true => Some(DialogMsg::Submit),
+                    true => {
+                        t.0 = c;
+                        Some(DialogMsg::Submit)
+                    }
                     false => None,
 
                 }

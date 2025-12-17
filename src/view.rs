@@ -19,13 +19,15 @@ pub enum View {
 #[derive(Clone, Debug)]
 pub enum ViewMsg {
     None,
-    Dialog(DialogMsg),
+    FollowPath(String),
     Switch(View),
 }
 #[derive(Clone, Debug)]
 pub enum TabMsg {
     CycleLeft,
     CycleRight,
+    DeleteMe,
+    FollowPath(String),
     Msg(ViewMsg),
 }
 #[derive(Clone, Debug)]
@@ -75,12 +77,29 @@ impl Tab {
     pub fn update(&mut self, keycode: KeyCode) -> Option<TabMsg> {
         if let Some(d) = self.dialogstack.last_mut() {
             match d.update(keycode) {
-                Some(DialogMsg::None) => {
-                    return Some(TabMsg::Msg(ViewMsg::Dialog(DialogMsg::None)))
-                }
-                Some(m) => {
+                Some(DialogMsg::Submit) => {
+                    let msg = match (&d.action, &d.input) {
+                        (Action::FollowPath(p), InputType::Choose((c, _))) => {
+                            match c {
+                                'y' => 
+                                    Some(TabMsg::Msg(
+                                            ViewMsg::FollowPath(p.clone()))),
+                                _ => 
+                                    Some(TabMsg::Msg(ViewMsg::None)),
+                            }
+                        }
+                        (_, _) => 
+                            Some(TabMsg::Msg(ViewMsg::None)),
+                    };
                     self.dialogstack.pop();
-                    return Some(TabMsg::Msg(ViewMsg::Dialog(m)))
+                    return msg
+                }
+                Some(DialogMsg::Cancel) => {
+                    self.dialogstack.pop();
+                    return Some(TabMsg::Msg(ViewMsg::None))
+                }
+                Some(_) => {
+                    return Some(TabMsg::Msg(ViewMsg::None))
                 }
                 _ => return None
             }
@@ -93,6 +112,12 @@ impl Tab {
             KeyCode::Char('o') => {
                 self.main.movecursorup();
                 Some(TabMsg::Msg(ViewMsg::None))
+            }
+            KeyCode::Char('e') => {
+                Some(TabMsg::CycleLeft)
+            }
+            KeyCode::Char('n') => {
+                Some(TabMsg::CycleRight)
             }
             KeyCode::Enter  => {
                 let dialog = match self.main.selectundercursor() {
@@ -114,9 +139,9 @@ impl Tab {
                         Dialog::new(
                             Action::FollowPath(l.to_string()),
                             String::from("follow the link?"),
-                            InputType::Choose(vec![
+                            InputType::Choose(('n', vec![
                                 ('y', String::from("yes")), 
-                                ('n', String::from("no"))]),
+                                ('n', String::from("no"))])),
                             Bounds::fromdimension(&self.size))
                     }
                 };
