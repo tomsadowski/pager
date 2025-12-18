@@ -10,6 +10,6 @@ pub enum View {
 #[derive(Clone, Debug)]
 pub enum ViewMsg {
     None,
-    FollowPath(String),
+    Go(String),
     Switch(View),
 }

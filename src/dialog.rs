@@ -1,15 +1,10 @@
 // pager/src/dialog
 
 use crate::widget::{Bounds};
-use crossterm::{QueueableCommand, cursor, terminal, style};
+use crossterm::{QueueableCommand, cursor, style};
 use crossterm::event::{KeyCode};
 use std::io::{self, Stdout};
 
-#[derive(Clone, Debug)]
-pub enum Action {
-    None,
-    FollowPath(String),
-}
 #[derive(Clone, Debug)]
 pub enum DialogMsg {
     None,
@@ -20,17 +15,17 @@ pub enum DialogMsg {
 pub enum InputType {
     None,
     Choose((char, Vec<(char, String)>)),
-    Input(Vec<char>),
+    Input(String),
 }
 #[derive(Clone, Debug)]
-pub struct Dialog {
-    pub action: Action,
+pub struct Dialog<T> {
+    pub action: T,
     pub input: InputType,
     bounds: Bounds,
     prompt: String,
 }
-impl Dialog {
-    pub fn new(action: Action, 
+impl<T: Clone + std::fmt::Debug> Dialog<T> {
+    pub fn new(action: T, 
                prompt: String, 
                input: InputType, 
                bounds: &Bounds) -> Self 
@@ -45,8 +40,6 @@ impl Dialog {
     pub fn view(&self, mut stdout: &Stdout) -> io::Result<()> {
         let start = self.bounds.pos.y as u16;
         stdout
-            .queue(cursor::MoveTo(0, start))?
-            .queue(style::Print(format!("{:?}", self.action)))?
             .queue(cursor::MoveTo(0, start + 2))?
             .queue(style::Print(self.prompt.as_str()))?
             .queue(cursor::MoveTo(0, start + 4))?

@@ -2,7 +2,7 @@
 
 use crate::widget::{Bounds, Dimension, Position, Selector};
 use crate::view::{ViewMsg};
-use crate::dialog::{Dialog, InputType, DialogMsg, Action};
+use crate::dialog::{Dialog, InputType, DialogMsg};
 use crate::tag::{self, Tag};
 use crossterm::{QueueableCommand, cursor, terminal};
 use crossterm::event::{KeyCode};
@@ -75,8 +75,12 @@ impl TabMgr {
         match self.tabs[self.curindex].update(keycode) {
             Some(msg) => {
                 match msg {
-                    TabMsg::Msg(ViewMsg::FollowPath(p)) => {
+                    TabMsg::Msg(ViewMsg::Go(p)) => {
                         self.tabs.push(Tab::new(&p, &self.bounds));
+                        self.curindex = self.tabs.len() - 1;
+                    }
+                    TabMsg::DeleteMe => {
+                        self.tabs.remove(self.curindex);
                         self.curindex = self.tabs.len() - 1;
                     }
                     TabMsg::CycleLeft => {
@@ -111,18 +115,25 @@ impl TabMgr {
 }
 
 #[derive(Clone, Debug)]
+pub enum Action {
+    None,
+    GoTo,
+    DeleteMe,
+    Go(String),
+}
+#[derive(Clone, Debug)]
 pub enum TabMsg {
     CycleLeft,
     CycleRight,
     DeleteMe,
-    FollowPath(String),
+    Go(String),
     Msg(ViewMsg),
 }
 #[derive(Clone, Debug)]
 pub struct Tab {
     bounds: Bounds,
     pub path: String,
-    dialogstack: Vec<Dialog>,
+    dialogstack: Vec<Dialog<Action>>,
     page: Selector<Tag>,
 }
 impl Tab {
@@ -155,13 +166,19 @@ impl Tab {
             match d.update(keycode) {
                 Some(DialogMsg::Submit) => {
                     let msg = match (&d.action, &d.input) {
-                        (Action::FollowPath(p), InputType::Choose((c, _))) => {
+                        (Action::Go(p), InputType::Choose((c, _))) => {
                             match c {
-                                'y' => 
-                                    Some(TabMsg::Msg(
-                                            ViewMsg::FollowPath(p.clone()))),
-                                _ => 
-                                    Some(TabMsg::Msg(ViewMsg::None)),
+                                'y' => Some(TabMsg::Msg(ViewMsg::Go(p.clone()))),
+                                _ => Some(TabMsg::Msg(ViewMsg::None)),
+                            }
+                        }
+                        (Action::GoTo, InputType::Input(v)) => {
+                            Some(TabMsg::Msg(ViewMsg::Go(v.clone())))
+                        }
+                        (Action::DeleteMe, InputType::Choose((c, _))) => {
+                            match c {
+                                'y' => Some(TabMsg::DeleteMe),
+                                _ => Some(TabMsg::Msg(ViewMsg::None)),
                             }
                         }
                         (_, _) => 
@@ -181,6 +198,26 @@ impl Tab {
             }
         }
         match keycode {
+            KeyCode::Char('v') => {
+                let dialog = Dialog::new(
+                    Action::DeleteMe,
+                    String::from("Delete current tab?"),
+                    InputType::Choose(('n', vec![
+                        ('y', String::from("yes")), 
+                        ('n', String::from("no"))])),
+                    &self.bounds);
+                self.dialogstack.push(dialog);
+                Some(TabMsg::Msg(ViewMsg::None))
+            }
+            KeyCode::Char('p') => {
+                let dialog = Dialog::new(
+                    Action::GoTo,
+                    String::from("enter path: "),
+                    InputType::Input(String::from("")),
+                    &self.bounds);
+                self.dialogstack.push(dialog);
+                Some(TabMsg::Msg(ViewMsg::None))
+            }
             KeyCode::Char('i') => {
                 self.page.movecursordown();
                 Some(TabMsg::Msg(ViewMsg::None))
@@ -197,29 +234,23 @@ impl Tab {
             }
             KeyCode::Enter => {
                 let dialog = match self.page.selectundercursor() {
-                    Tag::Text => {
-                        Dialog::new(
-                            Action::None,
-                            String::from("You've selected some text. "),
-                            InputType::None,
-                            &self.bounds)
-                    }
-                    Tag::Heading => {
-                        Dialog::new(
-                            Action::None,
-                            String::from("type here: "),
-                            InputType::Input(vec![]),
-                            &self.bounds)
-                    }
-                    Tag::Link(l) => {
-                        Dialog::new(
-                            Action::FollowPath(l.to_string()),
-                            String::from("follow the link?"),
-                            InputType::Choose(('n', vec![
-                                ('y', String::from("yes")), 
-                                ('n', String::from("no"))])),
-                            &self.bounds)
-                    }
+                    Tag::Text => Dialog::new(
+                        Action::None,
+                        String::from("You've selected some text. "),
+                        InputType::None,
+                        &self.bounds),
+                    Tag::Heading => Dialog::new(
+                        Action::None,
+                        String::from("You've selected a heading "),
+                        InputType::None,
+                        &self.bounds),
+                    Tag::Link(l) => Dialog::new(
+                        Action::Go(l.to_string()),
+                        String::from(format!("go to {}?", l)),
+                        InputType::Choose(('n', vec![
+                            ('y', String::from("yes")), 
+                            ('n', String::from("no"))])),
+                        &self.bounds),
                 };
                 self.dialogstack.push(dialog);
                 Some(TabMsg::Msg(ViewMsg::None))
