@@ -4,11 +4,10 @@
 #![allow(dead_code)]
 
 mod ui;
+mod util;
 mod tag;
 mod widget;
-mod view;
 mod tabs;
-mod dialog;
 
 use crate::ui::UI;
 use crossterm::{QueueableCommand, terminal, cursor, event};
@@ -17,13 +16,12 @@ use std::{env};
 
 fn main() -> io::Result<()> {
     // set up
-    let (w, h) = terminal::size()?;
     let args: Vec<String> = env::args().collect();
-
     let Some(path) = args.get(1) else {
         panic!("supply path as arg")
     };
-    let mut ui = UI::new(path, usize::from(w), usize::from(h));
+    let (w, h) = terminal::size()?;
+    let mut ui = UI::new(path, w, h);
 
     let mut stdout = stdout();
     terminal::enable_raw_mode()?;

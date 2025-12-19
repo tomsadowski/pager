@@ -1,25 +1,24 @@
 // pager/src/ui
 
-use crate::widget::{Dimension};
-use crate::view::{View};
+use crate::util::{Rect, View};
 use crate::tabs::{TabMgr};
 use crossterm::event::{Event, KeyEvent, KeyEventKind, KeyCode, KeyModifiers};
 use std::io::{self, Write, Stdout};
 
 #[derive(Clone, Debug)]
 pub struct UI {
-    size: Dimension,
+    rect: Rect,
     view: View,
     tabs: TabMgr,
     history: String,
     bookmarks: String,
 } 
 impl UI {
-    pub fn new(path: &str, w: usize, h: usize) -> Self {
-        let size = Dimension {w: w, h: h};
-        let tabs = TabMgr::new(path, &size);
+    pub fn new(path: &str, w: u16, h: u16) -> Self {
+        let rect = Rect::new(0, 0, w, h);
+        let tabs = TabMgr::new(&rect, path);
         Self {
-            size: size,
+            rect: rect,
             view: View::Tab,
             tabs: tabs,
             history: String::from(""),
@@ -35,8 +34,8 @@ impl UI {
         Ok(())
     }
     fn resize(&mut self, w: u16, h: u16) {
-        self.size = Dimension {w: usize::from(w), h: usize::from(h)};
-        self.tabs.resize(&self.size);
+        self.rect = Rect::new(0, 0, w, h);
+        self.tabs.resize(&self.rect);
     }
     pub fn update(&mut self, event: Event) -> bool {
         match event {
@@ -59,21 +58,18 @@ impl UI {
                 ..
             }) => 
                 match &self.view {
-                    View::Tab => self.updatetabs(keycode),
-                    View::History => self.updatehistory(keycode),
-                    View::Bookmarks => self.updatebookmarks(keycode),
+                    View::Tab => self.tabs.update(&keycode),
+                    View::History => self.updatehistory(&keycode),
+                    View::Bookmarks => self.updatebookmarks(&keycode),
                     View::Quit => false,
                 }
             _ => false,
         }
     }
-    pub fn updatetabs(&mut self, keycode: KeyCode) -> bool {
-        self.tabs.update(keycode)
-    }
-    pub fn updatehistory(&mut self, keycode: KeyCode) -> bool {
+    pub fn updatehistory(&mut self, keycode: &KeyCode) -> bool {
         false
     }
-    pub fn updatebookmarks(&mut self, keycode: KeyCode) -> bool {
+    pub fn updatebookmarks(&mut self, keycode: &KeyCode) -> bool {
         false
     }
     pub fn quit(&self) -> bool {

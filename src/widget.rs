@@ -1,290 +1,131 @@
 // pager/src/widget
 
 use crate::tag::GetColors;
+use crate::util::{self, Rect, ScrollingCursor};
 use crossterm::{QueueableCommand, cursor, style};
+use crossterm::event::{KeyCode};
 use std::io::{self, Stdout};
 
 #[derive(Clone, Debug)]
-pub struct Bounds {
-    pub pos: Position,
-    pub dim: Dimension,
+pub enum DialogMsg {
+    None,
+    Cancel,
+    Submit,
 }
-impl Bounds {
-    pub fn default() -> Self {
+#[derive(Clone, Debug)]
+pub enum InputType {
+    None,
+    Choose((char, Vec<(char, String)>)),
+    Input(String),
+}
+#[derive(Clone, Debug)]
+pub struct Dialog<T> {
+    pub action: T,
+    pub input: InputType,
+    rect: Rect,
+    prompt: String,
+}
+impl<T: Clone + std::fmt::Debug> Dialog<T> {
+    pub fn new(rect: &Rect, action: T, input: InputType, prompt: &str) -> Self {
         Self {
-            pos: Position::default(),
-            dim: Dimension::default(),
+            rect: rect.clone(),
+            action: action,
+            input: input,
+            prompt: String::from(prompt), 
         }
     }
-    pub fn fromdimension(dim: &Dimension) -> Self {
-        Self {
-            pos: Position::default(),
-            dim: Dimension {w: dim.w, h: dim.h},
-        }
+    pub fn view(&self, mut stdout: &Stdout) -> io::Result<()> {
+        stdout
+            .queue(cursor::MoveTo(0, self.rect.y + 2))?
+            .queue(style::Print(self.prompt.as_str()))?
+            .queue(cursor::MoveTo(0, self.rect.y + 4))?
+            .queue(style::Print(format!("{:?}", self.input)))?;
+        Ok(())
     }
-}
-#[derive(Clone, Debug)]
-pub struct Position {
-    pub x: usize, 
-    pub y: usize, 
-}
-impl Position {
-    pub fn default() -> Self {
-        Self {x: 0, y: 0}
+    pub fn resize(&mut self, rect: &Rect) {
+        self.rect = rect.clone();
     }
-}
-#[derive(Clone, Debug)]
-pub struct Dimension {
-    pub w: usize, 
-    pub h: usize,
-}
-impl Dimension {
-    pub fn default() -> Self {
-        Self {w: 0, h: 0}
-    }
-}
-#[derive(Clone, Debug)]
-pub struct Cursor {
-    pub cur: usize,
-    pub min: usize,
-    pub max: usize,
-}
-impl Cursor {
-    pub fn top(textlength: usize, bounds: &Bounds) -> Self {
-        match textlength < bounds.dim.h {
-            true  => Self {
-                cur: bounds.pos.y, 
-                min: bounds.pos.y,
-                max: bounds.pos.y + textlength,
-            },
-            false => Self {
-                cur: bounds.pos.y, 
-                min: bounds.pos.y,
-                max: bounds.pos.y + bounds.dim.h,
-            },
-        }
-    }
-    pub fn center(textlength: usize, bounds: &Bounds) -> Self {
-        match textlength < bounds.dim.h {
-            true  => Self {
-                cur: (textlength - 1) / 2,
-                min: bounds.pos.y,
-                max: bounds.pos.y + textlength,
-            },
-            false => Self {
-                cur: (bounds.dim.h - 1) / 2,
-                min: bounds.pos.y,
-                max: bounds.pos.y + bounds.dim.h,
-            },
-        }
-    }
-    pub fn moveup(&mut self, step: usize) -> bool {
-        if (self.min + step) <= self.cur {
-            self.cur -= step;
-            return true
-        } 
-        false
-    }
-    pub fn movedown(&mut self, step: usize) -> bool {
-        if (self.cur + step) <= (self.max - 1) {
-            self.cur += step;
-            return true 
-        }
-        false
-    }
-    pub fn range(&self) -> usize {
-        self.max - self.min
-    }
-}
-#[derive(Clone, Debug)]
-pub struct Scroll {
-    pub cur: usize,
-    pub max: usize,
-}
-impl Scroll {
-    pub fn new(textlength: usize, range: usize) -> Self {
-        match textlength <= range  {
-            true  => Self {
-                cur: 0, 
-                max: 0,
-            },
-            false => Self {
-                cur: 0, 
-                max: textlength - range
-            },
-        }
-    }
-    pub fn resize(&mut self, textlength: usize, range: usize) {
-        match textlength <= range  {
-            true  => {
-                self.cur = 0;
-                self.max = 0;
-            },
-            false => {
-                self.max = textlength - range;
-                self.cur = std::cmp::min(self.cur, self.max);
-            },
-        }
-    }
-    pub fn moveup(&mut self, step: usize) -> bool {
-        if usize::MIN + step <= self.cur {
-            self.cur -= step;
-            return true
-        } 
-        false
-    }
-    pub fn movedown(&mut self, step: usize) -> bool {
-        if (self.cur + step) <= self.max {
-            self.cur += step;
-            return true
-        } 
-        false
-    }
-}
-pub fn wrap(line: &str, width: usize) -> Vec<String> {
-    let mut wrapped: Vec<String> = vec![];
-    let mut start = 0;
-    let mut end = width;
-    let length = line.len();
-    while end < length {
-        let longest = &line[start..end];
-        match longest.rsplit_once(' ') {
-            Some((a, b)) => {
-                let shortest = match a.len() {
-                    0 => b,
-                    _ => a,
-                };
-                wrapped.push(String::from(shortest));
-                start += shortest.len();
-                end = start + width;
+    pub fn update(&mut self, keycode: &KeyCode) -> Option<DialogMsg> {
+        match (&mut self.input, keycode) {
+            (InputType::Choose(_), KeyCode::Enter) => {
+                Some(DialogMsg::None)
             }
-            None => {
-                wrapped.push(String::from(longest));
-                start = end;
-                end += width;
+            (_, KeyCode::Enter) => {
+                Some(DialogMsg::Submit)
             }
-        }
-    }
-    if start < length {
-        wrapped.push(String::from(&line[start..length]));
-    }
-    wrapped
-}
-pub fn cut(line: &str, mut width: usize) -> String {
-    if line.len() < width {
-        return String::from(line)
-    }
-    else {
-        width -= 2;
-        let longest = &line[..width];
-        match longest.rsplit_once(' ') {
-            Some((a, b)) => {
-                let shortest = match a.len() {
-                    0 => b,
-                    _ => a,
-                };
-                return format!("{}..", shortest)
+            (_, KeyCode::Esc) => {
+                Some(DialogMsg::Cancel)
             }
-            None => {
-                return format!("{}..", longest)
+            (InputType::Input(v), KeyCode::Backspace) => {
+                v.pop();
+                Some(DialogMsg::None)
             }
-        }
+            (InputType::Input(v), KeyCode::Char(c)) => {
+                v.push(*c);
+                Some(DialogMsg::None)
+            }
+            (InputType::Choose(t), KeyCode::Char(c)) => {
+                let chars: Vec<char> = t.1.iter().map(|e| e.0).collect();
+                match chars.contains(&c) {
+                    true => {
+                        t.0 = *c;
+                        Some(DialogMsg::Submit)
+                    }
+                    false => None,
 
+                }
+            }
+            _ => None,
+        }
     }
 }
 #[derive(Clone, Debug)]
 pub struct Selector<T> {
     wrap: bool,
-    bounds: Bounds,
-    cursor: Cursor,
-    scroll: Scroll,
+    rect: Rect,
+    pub cursor: ScrollingCursor,
     source: Vec<(T, String)>,
     display: Vec<(usize, String)>,
 } 
 impl<T: Clone + GetColors> Selector<T> {
-    pub fn new(source: Vec<(T, String)>, wrap: bool, bounds: Bounds) -> Self {
-        let source = source.clone();
+    pub fn new(rect: &Rect, source: Vec<(T, String)>, wrap: bool) -> Self {
         let display = 
             match wrap {
-                true => Self::wraplist(&source, bounds.dim.w),
-                false => Self::cutlist(&source, bounds.dim.w),
+                true => util::wraplist(&source, rect.w),
+                false => util::cutlist(&source, rect.w),
             };
         let textlength = display.len();
-        let cursor = Cursor::top(textlength, &bounds);
-        let scroll = Scroll::new(textlength, cursor.range());
         return Self {
             wrap: wrap,
             source: source,
             display: display,
-            cursor: cursor,
-            scroll: scroll,
-            bounds: bounds,
+            cursor: ScrollingCursor::new(textlength, &rect),
+            rect: rect.clone(),
         }
     }
-    pub fn resize(&mut self, newbounds: Bounds) {
-        self.display = 
-            match self.wrap {
-                true => Self::wraplist(&self.source, newbounds.dim.w),
-                false => Self::cutlist(&self.source, newbounds.dim.w),
-            };
-        let textlength = self.display.len();
-        self.cursor = Cursor::center(textlength, &newbounds);
-        self.bounds = newbounds;
-        self.scroll.resize(textlength, self.cursor.range());
+    pub fn resize(&mut self, rect: &Rect) {
+        self.rect = rect.clone();
+        self.display = match self.wrap {
+            true => util::wraplist(&self.source, rect.w),
+            false => util::cutlist(&self.source, rect.w),
+        };
+        self.cursor.resize(self.display.len(), rect);
     }
     pub fn view(&self, mut stdout: &Stdout) -> io::Result<()> {
-        let screencol = self.bounds.pos.x as u16;
+        let (start, end) = self.cursor.slicebounds();
         for (textindex, (sourceindex, text)) in 
-            self.display
-                [self.scroll.cur..(self.scroll.cur + self.cursor.range())]
-                .iter()
-                .enumerate() 
+            self.display[start..end].iter().enumerate() 
         {
-            let screenrow = (self.bounds.pos.y + textindex) as u16;
+            let screenrow = self.rect.y + textindex as u16;
             stdout
-                .queue(cursor::MoveTo(screencol, screenrow))?
-                .queue(style::SetColors(self.select(*sourceindex).getcolors()))?
+                .queue(cursor::MoveTo(self.rect.x, screenrow))?
+                .queue(style::SetColors(self.source[*sourceindex].0.getcolors()))?
                 .queue(style::Print(text.as_str()))?;
         }
-        stdout.queue(cursor::MoveTo(0, self.cursor.cur as u16))?;
+        stdout.queue(cursor::MoveTo(0, self.cursor.cursor))?;
         Ok(())
     }
-    pub fn movecursordown(&mut self) {
-        if !self.cursor.movedown(1) {
-            self.scroll.movedown(1);
-        }
-    }
-    pub fn movecursorup(&mut self) {
-        if !self.cursor.moveup(1) {
-            self.scroll.moveup(1);
-        }
-    }
     pub fn selectundercursor(&self) -> &T {
-        let index = self.cursor.cur - self.bounds.pos.y;
-        &self.source[self.display[index].0].0
-    }
-    pub fn select(&self, i: usize) -> &T {
-        &self.source[i].0
-    }
-    pub fn cutlist(lines: &Vec<(T, String)>, width: usize) 
-        -> Vec<(usize, String)>
-    {
-        let mut display: Vec<(usize, String)> = vec![];
-        for (i, (t, l)) in lines.iter().enumerate() {
-            display.push((i, cut(l, width)));
-        }
-        display
-    }
-    pub fn wraplist(lines: &Vec<(T, String)>, width: usize) 
-        -> Vec<(usize, String)>
-    {
-        let mut display: Vec<(usize, String)> = vec![];
-        for (i, (t, l)) in lines.iter().enumerate() {
-            let v = wrap(l, width);
-            for s in v.iter() {
-                display.push((i, s.to_string()));
-            }
-        }
-        display
+        &self.source[self.display[self.cursor.index()].0].0
     }
 } 

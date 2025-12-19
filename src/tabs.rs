@@ -1,8 +1,8 @@
 // pager/src/tabs
 
-use crate::widget::{Bounds, Dimension, Position, Selector};
-use crate::view::{ViewMsg};
-use crate::dialog::{Dialog, InputType, DialogMsg};
+use crate::util::{Rect};
+use crate::widget::{Selector, Dialog, InputType, DialogMsg};
+use crate::util::{ViewMsg};
 use crate::tag::{self, Tag};
 use crossterm::{QueueableCommand, cursor, terminal};
 use crossterm::event::{KeyCode};
@@ -12,8 +12,7 @@ use std::io::{self, Stdout};
 
 #[derive(Clone, Debug)]
 pub struct TabMgr {
-    dim: Dimension,
-    bounds: Bounds,
+    rect: Rect,
     bannerstr: String,
     bannerline: String,
     bannerstrcolor: Colors,
@@ -22,18 +21,14 @@ pub struct TabMgr {
     tabs: Vec<Tab>,
 }
 impl TabMgr {
-    pub fn new(path: &str, dim: &Dimension) -> Self {
-        let bounds = Bounds {
-            pos: Position {x: 0, y: 2}, 
-            dim: Dimension {w: dim.w, h: dim.h - 1},
-        };
-        let tab = Tab::new(path, &bounds);
+    pub fn new(rect: &Rect, path: &str) -> Self {
+        let rect = Rect::new(rect.x, rect.y + 2, rect.w, rect.h - 1);
+        let tab = Tab::new(&rect, &path);
         let curindex = 0;
         let bannerstr = Self::bannerstr(curindex, 1, path);
-        let bannerline = Self::bannerline(&dim);
+        let bannerline = Self::bannerline(rect.w);
         Self {
-            dim: dim.clone(),
-            bounds: bounds.clone(),
+            rect: rect.clone(),
             bannerstr: bannerstr,
             bannerline: bannerline,
             bannerstrcolor: Colors::new(
@@ -46,18 +41,11 @@ impl TabMgr {
             tabs: vec![tab],
         }
     }
-    pub fn add(&mut self, path: &str) {
-        self.tabs.push(Tab::new(path, &self.bounds));
-    }
-    pub fn resize(&mut self, dim: &Dimension) {
-        self.dim = dim.clone();
-        self.bannerline = Self::bannerline(&self.dim);
-        self.bounds = Bounds {
-            pos: Position  {x: 0, y: 2}, 
-            dim: Dimension {w: dim.w, h: dim.h - 1}
-        };
+    pub fn resize(&mut self, rect: &Rect) {
+        self.rect = Rect::new(rect.x, rect.y + 2, rect.w, rect.h - 1);
+        self.bannerline = Self::bannerline(rect.w);
         for d in self.tabs.iter_mut() {
-            d.resize(&self.bounds);
+            d.resize(&self.rect);
         }
     }
     pub fn view(&self, mut stdout: &Stdout) -> io::Result<()> {
@@ -71,17 +59,19 @@ impl TabMgr {
             .queue(style::Print(&self.bannerline))?;
         self.tabs[self.curindex].view(stdout)
     }
-    pub fn update(&mut self, keycode: KeyCode) -> bool {
+    pub fn update(&mut self, keycode: &KeyCode) -> bool {
         match self.tabs[self.curindex].update(keycode) {
             Some(msg) => {
                 match msg {
                     TabMsg::Msg(ViewMsg::Go(p)) => {
-                        self.tabs.push(Tab::new(&p, &self.bounds));
+                        self.tabs.push(Tab::new(&self.rect, &p));
                         self.curindex = self.tabs.len() - 1;
                     }
                     TabMsg::DeleteMe => {
-                        self.tabs.remove(self.curindex);
-                        self.curindex = self.tabs.len() - 1;
+                        if self.tabs.len() > 1 {
+                            self.tabs.remove(self.curindex);
+                            self.curindex = self.tabs.len() - 1;
+                        }
                     }
                     TabMsg::CycleLeft => {
                         match self.curindex == 0 {
@@ -100,7 +90,7 @@ impl TabMgr {
                 let len = self.tabs.len();
                 let path = &self.tabs[self.curindex].path;
                 self.bannerstr = Self::bannerstr(self.curindex, len, path);
-                self.bannerline = Self::bannerline(&self.dim);
+                self.bannerline = Self::bannerline(self.rect.w);
                 true
             }
             None => false,
@@ -109,8 +99,8 @@ impl TabMgr {
     fn bannerstr(curindex: usize, totaltab: usize, path: &str) -> String {
         format!("{}/{}: {}", curindex + 1, totaltab, path)
     }
-    fn bannerline(dim: &Dimension) -> String {
-        String::from("-").repeat(dim.w)
+    fn bannerline(w: u16) -> String {
+        String::from("-").repeat(usize::from(w))
     }
 }
 
@@ -131,37 +121,37 @@ pub enum TabMsg {
 }
 #[derive(Clone, Debug)]
 pub struct Tab {
-    bounds: Bounds,
+    rect: Rect,
     pub path: String,
     dialogstack: Vec<Dialog<Action>>,
     page: Selector<Tag>,
 }
 impl Tab {
-    pub fn new(path: &str, bounds: &Bounds) -> Self {
+    pub fn new(rect: &Rect, path: &str) -> Self {
         let src = fs::read_to_string(&path).unwrap();
         let text = tag::parse_doc(src.lines().collect());
         Self {
-            bounds: bounds.clone(),
+            rect: rect.clone(),
             path: String::from(path),
             dialogstack: vec![],
-            page: Selector::new(text, true, bounds.clone()),
+            page: Selector::new(rect, text, true),
         }
     }
     pub fn view(&self, mut stdout: &Stdout) -> io::Result<()> {
-        stdout.queue(cursor::MoveTo(0, self.bounds.pos.y as u16))?;
+        stdout.queue(cursor::MoveTo(0, self.rect.y))?;
         match self.dialogstack.last() {
             Some(d) => d.view(stdout),
             _ => self.page.view(stdout),
         }
     }
-    pub fn resize(&mut self, bounds: &Bounds) {
-        self.bounds = bounds.clone();
-        self.page.resize(bounds.clone());
+    pub fn resize(&mut self, rect: &Rect) {
+        self.rect = rect.clone();
+        self.page.resize(&rect);
         for d in self.dialogstack.iter_mut() {
-            d.resize(&bounds);
+            d.resize(&rect);
         }
     }
-    pub fn update(&mut self, keycode: KeyCode) -> Option<TabMsg> {
+    pub fn update(&mut self, keycode: &KeyCode) -> Option<TabMsg> {
         if let Some(d) = self.dialogstack.last_mut() {
             match d.update(keycode) {
                 Some(DialogMsg::Submit) => {
@@ -200,30 +190,30 @@ impl Tab {
         match keycode {
             KeyCode::Char('v') => {
                 let dialog = Dialog::new(
+                    &self.rect,
                     Action::DeleteMe,
-                    String::from("Delete current tab?"),
                     InputType::Choose(('n', vec![
                         ('y', String::from("yes")), 
                         ('n', String::from("no"))])),
-                    &self.bounds);
+                    "Delete current tab?");
                 self.dialogstack.push(dialog);
                 Some(TabMsg::Msg(ViewMsg::None))
             }
             KeyCode::Char('p') => {
                 let dialog = Dialog::new(
+                    &self.rect,
                     Action::GoTo,
-                    String::from("enter path: "),
                     InputType::Input(String::from("")),
-                    &self.bounds);
+                    "enter path: ");
                 self.dialogstack.push(dialog);
                 Some(TabMsg::Msg(ViewMsg::None))
             }
             KeyCode::Char('i') => {
-                self.page.movecursordown();
+                self.page.cursor.movedown(1);
                 Some(TabMsg::Msg(ViewMsg::None))
             }
             KeyCode::Char('o') => {
-                self.page.movecursorup();
+                self.page.cursor.moveup(1);
                 Some(TabMsg::Msg(ViewMsg::None))
             }
             KeyCode::Char('e') => {
@@ -235,22 +225,22 @@ impl Tab {
             KeyCode::Enter => {
                 let dialog = match self.page.selectundercursor() {
                     Tag::Text => Dialog::new(
+                        &self.rect,
                         Action::None,
-                        String::from("You've selected some text. "),
                         InputType::None,
-                        &self.bounds),
+                        "You've selected some text. "),
                     Tag::Heading => Dialog::new(
+                        &self.rect,
                         Action::None,
-                        String::from("You've selected a heading "),
                         InputType::None,
-                        &self.bounds),
+                        "You've selected a heading "),
                     Tag::Link(l) => Dialog::new(
+                        &self.rect,
                         Action::Go(l.to_string()),
-                        String::from(format!("go to {}?", l)),
                         InputType::Choose(('n', vec![
                             ('y', String::from("yes")), 
                             ('n', String::from("no"))])),
-                        &self.bounds),
+                        &format!("go to {}?", l)),
                 };
                 self.dialogstack.push(dialog);
                 Some(TabMsg::Msg(ViewMsg::None))
