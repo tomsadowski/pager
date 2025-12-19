@@ -20,9 +20,9 @@ pub enum InputType {
 }
 #[derive(Clone, Debug)]
 pub struct Dialog<T> {
+    rect: Rect,
     pub action: T,
     pub input: InputType,
-    rect: Rect,
     prompt: String,
 }
 impl<T: Clone + std::fmt::Debug> Dialog<T> {
@@ -81,26 +81,24 @@ impl<T: Clone + std::fmt::Debug> Dialog<T> {
 }
 #[derive(Clone, Debug)]
 pub struct Selector<T> {
-    wrap: bool,
     rect: Rect,
-    pub cursor: ScrollingCursor,
     source: Vec<(T, String)>,
+    wrap: bool,
     display: Vec<(usize, String)>,
+    pub cursor: ScrollingCursor,
 } 
 impl<T: Clone + GetColors> Selector<T> {
     pub fn new(rect: &Rect, source: Vec<(T, String)>, wrap: bool) -> Self {
-        let display = 
-            match wrap {
-                true => util::wraplist(&source, rect.w),
-                false => util::cutlist(&source, rect.w),
-            };
-        let textlength = display.len();
+        let display = match wrap {
+            true => util::wraplist(&source, rect.w),
+            false => util::cutlist(&source, rect.w),
+        };
         return Self {
+            rect: rect.clone(),
             wrap: wrap,
             source: source,
+            cursor: ScrollingCursor::new(display.len(), &rect),
             display: display,
-            cursor: ScrollingCursor::new(textlength, &rect),
-            rect: rect.clone(),
         }
     }
     pub fn resize(&mut self, rect: &Rect) {
@@ -112,14 +110,11 @@ impl<T: Clone + GetColors> Selector<T> {
         self.cursor.resize(self.display.len(), rect);
     }
     pub fn view(&self, mut stdout: &Stdout) -> io::Result<()> {
-        let (start, end) = self.cursor.slicebounds();
-        for (textindex, (sourceindex, text)) in 
-            self.display[start..end].iter().enumerate() 
-        {
-            let screenrow = self.rect.y + textindex as u16;
+        let (a, b) = self.cursor.slicebounds();
+        for (j, (i, text)) in self.display[a..b].iter().enumerate() {
             stdout
-                .queue(cursor::MoveTo(self.rect.x, screenrow))?
-                .queue(style::SetColors(self.source[*sourceindex].0.getcolors()))?
+                .queue(cursor::MoveTo(self.rect.x, self.rect.y + j as u16))?
+                .queue(style::SetColors(self.source[*i].0.getcolors()))?
                 .queue(style::Print(text.as_str()))?;
         }
         stdout.queue(cursor::MoveTo(0, self.cursor.cursor))?;

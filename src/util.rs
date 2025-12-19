@@ -32,8 +32,7 @@ pub struct ScrollingCursor {
     pub scroll: usize,
     pub maxscroll: usize,
     pub cursor: u16,
-    pub mincursor: u16,
-    pub maxcursor: u16,
+    pub rect: Rect,
 }
 impl ScrollingCursor {
     pub fn new(textlength: usize, rect: &Rect) -> Self {
@@ -43,18 +42,17 @@ impl ScrollingCursor {
         match len < rect.h {
             // no scrolling allowed
             true => Self {
+                rect: Rect::new(rect.x, rect.y, rect.w, len),
                 cursor: rect.y, 
-                mincursor: rect.y,
-                maxcursor: rect.y + len,
                 scroll: 0, 
                 maxscroll: 0,
             },
+            // scrolling allowed
             false => Self {
+                rect: rect.clone(),
                 cursor: rect.y, 
-                mincursor: rect.y,
-                maxcursor: rect.y + rect.h,
                 scroll: 0, 
-                maxscroll: usize::from(len - rect.h),
+                maxscroll: textlength - usize::from(rect.h),
             },
         }
     }
@@ -65,24 +63,23 @@ impl ScrollingCursor {
         match len < rect.h {
             // no scrolling allowed
             true => {
-                self.cursor = (len - 1) / 2;
-                self.mincursor = rect.y;
-                self.maxcursor = rect.y + len;
+                self.rect = Rect::new(rect.x, rect.y, rect.w, len);
                 self.scroll = 0;
                 self.maxscroll = 0;
             },
+            // scrolling allowed
             false => {
-                self.cursor = (rect.h - 1) / 2;
-                self.mincursor = rect.y;
-                self.maxcursor = rect.y + rect.h;
-                self.maxscroll = usize::from(len - rect.h);
+                self.rect = rect.clone();
                 self.scroll = std::cmp::min(self.scroll, self.maxscroll);
+                self.maxscroll = textlength - usize::from(rect.h);
             },
         }
+        self.cursor = (self.rect.y + self.rect.h - 1) / 2;
     }
+    // scroll up when cursor is at highest position
     pub fn moveup(&mut self, step: u16) -> bool {
         let scrollstep = usize::from(step);
-        if (self.mincursor + step) <= self.cursor {
+        if (self.rect.y + step) <= self.cursor {
             self.cursor -= step;
             true
         } else if usize::MIN + scrollstep <= self.scroll {
@@ -92,9 +89,10 @@ impl ScrollingCursor {
             false
         }
     }
+    // scroll down when cursor is at lowest position
     pub fn movedown(&mut self, step: u16) -> bool {
         let scrollstep = usize::from(step);
-        if (self.cursor + step) <= (self.maxcursor - 1) {
+        if (self.cursor + step) <= (self.rect.y + self.rect.h - 1) {
             self.cursor += step;
             true 
         } else if (self.scroll + scrollstep) <= self.maxscroll {
@@ -105,11 +103,12 @@ impl ScrollingCursor {
         }
     }
     pub fn slicebounds(&self) -> (usize, usize) {
-        (self.scroll, self.scroll 
-         + usize::from(self.maxcursor - self.mincursor))
+        let a = self.scroll;
+        let b = self.scroll + usize::from(self.rect.h);
+        (a, b)
     }
     pub fn index(&self) -> usize {
-        usize::from(self.cursor - self.mincursor)
+        usize::from(self.cursor - self.rect.y)
     }
 }
 pub fn wrap(line: &str, screenwidth: u16) -> Vec<String> {
