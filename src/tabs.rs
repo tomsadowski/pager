@@ -23,22 +23,18 @@ pub struct TabMgr {
 impl TabMgr {
     pub fn new(rect: &Rect, path: &str) -> Self {
         let rect = Rect::new(rect.x, rect.y + 2, rect.w, rect.h - 1);
-        let tab = Tab::new(&rect, &path);
-        let curindex = 0;
-        let bannerstr = Self::bannerstr(curindex, 1, path);
-        let bannerline = Self::bannerline(rect.w);
         Self {
             rect: rect.clone(),
-            bannerstr: bannerstr,
-            bannerline: bannerline,
+            tabs: vec![Tab::new(&rect, &path)],
+            curindex: 0,
+            bannerstr: Self::bannerstr(0, 1, path),
+            bannerline: Self::bannerline(rect.w),
             bannerstrcolor: Colors::new(
                 Color::Rgb {r: 180, g: 180, b: 180},
                 Color::Rgb {r: 0, g: 0, b: 0}),
             bannerlinecolor: Colors::new(
                 Color::Rgb {r: 180, g: 180, b: 180},
                 Color::Rgb {r: 0, g: 0, b: 0}),
-            curindex: curindex,
-            tabs: vec![tab],
         }
     }
     pub fn resize(&mut self, rect: &Rect) {
@@ -123,7 +119,7 @@ pub enum TabMsg {
 pub struct Tab {
     rect: Rect,
     pub path: String,
-    dialogstack: Vec<Dialog<Action>>,
+    dlgstack: Vec<Dialog<Action>>,
     page: Selector<Tag>,
 }
 impl Tab {
@@ -133,13 +129,13 @@ impl Tab {
         Self {
             rect: rect.clone(),
             path: String::from(path),
-            dialogstack: vec![],
+            dlgstack: vec![],
             page: Selector::new(rect, text, true),
         }
     }
     pub fn view(&self, mut stdout: &Stdout) -> io::Result<()> {
         stdout.queue(cursor::MoveTo(0, self.rect.y))?;
-        match self.dialogstack.last() {
+        match self.dlgstack.last() {
             Some(d) => d.view(stdout),
             _ => self.page.view(stdout),
         }
@@ -147,19 +143,21 @@ impl Tab {
     pub fn resize(&mut self, rect: &Rect) {
         self.rect = rect.clone();
         self.page.resize(&rect);
-        for d in self.dialogstack.iter_mut() {
+        for d in self.dlgstack.iter_mut() {
             d.resize(&rect);
         }
     }
     pub fn update(&mut self, keycode: &KeyCode) -> Option<TabMsg> {
-        if let Some(d) = self.dialogstack.last_mut() {
+        if let Some(d) = self.dlgstack.last_mut() {
             match d.update(keycode) {
                 Some(DialogMsg::Submit) => {
                     let msg = match (&d.action, &d.input) {
                         (Action::Go(p), InputType::Choose((c, _))) => {
                             match c {
-                                'y' => Some(TabMsg::Msg(ViewMsg::Go(p.clone()))),
-                                _ => Some(TabMsg::Msg(ViewMsg::None)),
+                                'y' => 
+                                    Some(TabMsg::Msg(ViewMsg::Go(p.clone()))),
+                                _ => 
+                                    Some(TabMsg::Msg(ViewMsg::None)),
                             }
                         }
                         (Action::GoTo, InputType::Input(v)) => {
@@ -167,18 +165,20 @@ impl Tab {
                         }
                         (Action::DeleteMe, InputType::Choose((c, _))) => {
                             match c {
-                                'y' => Some(TabMsg::DeleteMe),
-                                _ => Some(TabMsg::Msg(ViewMsg::None)),
+                                'y' => 
+                                    Some(TabMsg::DeleteMe),
+                                _ => 
+                                    Some(TabMsg::Msg(ViewMsg::None)),
                             }
                         }
                         (_, _) => 
                             Some(TabMsg::Msg(ViewMsg::None)),
                     };
-                    self.dialogstack.pop();
+                    self.dlgstack.pop();
                     return msg
                 }
                 Some(DialogMsg::Cancel) => {
-                    self.dialogstack.pop();
+                    self.dlgstack.pop();
                     return Some(TabMsg::Msg(ViewMsg::None))
                 }
                 Some(_) => {
@@ -196,7 +196,7 @@ impl Tab {
                         ('y', String::from("yes")), 
                         ('n', String::from("no"))])),
                     "Delete current tab?");
-                self.dialogstack.push(dialog);
+                self.dlgstack.push(dialog);
                 Some(TabMsg::Msg(ViewMsg::None))
             }
             KeyCode::Char('p') => {
@@ -205,7 +205,7 @@ impl Tab {
                     Action::GoTo,
                     InputType::Input(String::from("")),
                     "enter path: ");
-                self.dialogstack.push(dialog);
+                self.dlgstack.push(dialog);
                 Some(TabMsg::Msg(ViewMsg::None))
             }
             KeyCode::Char('i') => {
@@ -242,7 +242,7 @@ impl Tab {
                             ('n', String::from("no"))])),
                         &format!("go to {}?", l)),
                 };
-                self.dialogstack.push(dialog);
+                self.dlgstack.push(dialog);
                 Some(TabMsg::Msg(ViewMsg::None))
             }
             _ => None,

@@ -16,11 +16,10 @@ pub struct UI {
 impl UI {
     pub fn new(path: &str, w: u16, h: u16) -> Self {
         let rect = Rect::new(0, 0, w, h);
-        let tabs = TabMgr::new(&rect, path);
         Self {
+            tabs: TabMgr::new(&rect, path),
             rect: rect,
             view: View::Tab,
-            tabs: tabs,
             history: String::from(""),
             bookmarks: String::from(""),
         }
@@ -30,8 +29,7 @@ impl UI {
             View::Tab => self.tabs.view(stdout),
             _ => Ok(()),
         }?;
-        stdout.flush()?;
-        Ok(())
+        stdout.flush()
     }
     fn resize(&mut self, w: u16, h: u16) {
         self.rect = Rect::new(0, 0, w, h);
@@ -59,18 +57,10 @@ impl UI {
             }) => 
                 match &self.view {
                     View::Tab => self.tabs.update(&keycode),
-                    View::History => self.updatehistory(&keycode),
-                    View::Bookmarks => self.updatebookmarks(&keycode),
-                    View::Quit => false,
+                    _ => false,
                 }
             _ => false,
         }
-    }
-    pub fn updatehistory(&mut self, keycode: &KeyCode) -> bool {
-        false
-    }
-    pub fn updatebookmarks(&mut self, keycode: &KeyCode) -> bool {
-        false
     }
     pub fn quit(&self) -> bool {
         match self.view {
