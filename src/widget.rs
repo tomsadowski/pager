@@ -26,7 +26,8 @@ pub struct Dialog<T> {
     prompt: String,
 }
 impl<T: Clone + std::fmt::Debug> Dialog<T> {
-    pub fn new(rect: &Rect, action: T, input: InputType, prompt: &str) -> Self {
+    pub fn new(rect: &Rect, action: T, input: InputType, prompt: &str) -> Self 
+    {
         Self {
             rect: rect.clone(),
             action: action,
@@ -36,34 +37,43 @@ impl<T: Clone + std::fmt::Debug> Dialog<T> {
     }
     pub fn view(&self, mut stdout: &Stdout) -> io::Result<()> {
         stdout
-            .queue(cursor::MoveTo(0, self.rect.y + 2))?
+            .queue(cursor::MoveTo(self.rect.x + 2, self.rect.y + 2))?
             .queue(style::Print(self.prompt.as_str()))?
-            .queue(cursor::MoveTo(0, self.rect.y + 4))?
+            .queue(cursor::MoveTo(self.rect.x + 2, self.rect.y + 4))?
             .queue(style::Print(format!("{:?}", self.input)))?;
         Ok(())
     }
+    // No wrapping yet, so resize is straightforward
     pub fn resize(&mut self, rect: &Rect) {
         self.rect = rect.clone();
     }
+    // Keycode has various meanings depending on the InputType.
+    // The match statement might be moved to impl InputType
     pub fn update(&mut self, keycode: &KeyCode) -> Option<DialogMsg> {
         match (&mut self.input, keycode) {
-            (InputType::Choose(_), KeyCode::Enter) => {
-                Some(DialogMsg::None)
-            }
-            (_, KeyCode::Enter) => {
-                Some(DialogMsg::Submit)
-            }
+            // Pressing Escape always cancels
             (_, KeyCode::Esc) => {
                 Some(DialogMsg::Cancel)
             }
+            // Pressing Enter in a choosebox means nothing
+            (InputType::Choose(_), KeyCode::Enter) => {
+                Some(DialogMsg::None)
+            }
+            // Otherwise, pressing Enter means Submit
+            (_, KeyCode::Enter) => {
+                Some(DialogMsg::Submit)
+            }
+            // Backspace works in inputbox
             (InputType::Input(v), KeyCode::Backspace) => {
                 v.pop();
                 Some(DialogMsg::None)
             }
+            // Typing works in inputbox
             (InputType::Input(v), KeyCode::Char(c)) => {
                 v.push(*c);
                 Some(DialogMsg::None)
             }
+            // Check for meaning in choosebox
             (InputType::Choose(t), KeyCode::Char(c)) => {
                 let chars: Vec<char> = t.1.iter().map(|e| e.0).collect();
                 match chars.contains(&c) {

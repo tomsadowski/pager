@@ -13,12 +13,15 @@ use std::io::{self, Stdout};
 #[derive(Clone, Debug)]
 pub struct TabMgr {
     rect: Rect,
-    bannerstr: String,
-    bannerline: String,
-    bannerstrcolor: Colors,
-    bannerlinecolor: Colors,
-    curindex: usize,
     tabs: Vec<Tab>,
+    // index of current tab
+    curindex: usize,
+    // meta data to display at all times
+    bannerstr: String,
+    bannerstrcolor: Colors,
+    // separate banner from page
+    bannerline: String,
+    bannerlinecolor: Colors,
 }
 impl TabMgr {
     pub fn new(rect: &Rect, path: &str) -> Self {
@@ -37,6 +40,7 @@ impl TabMgr {
                 Color::Rgb {r: 0, g: 0, b: 0}),
         }
     }
+    // adjust length of banner line, resize all tabs
     pub fn resize(&mut self, rect: &Rect) {
         self.rect = Rect::new(rect.x, rect.y + 2, rect.w, rect.h - 1);
         self.bannerline = Self::bannerline(rect.w);
@@ -44,6 +48,7 @@ impl TabMgr {
             d.resize(&self.rect);
         }
     }
+    // display banner and page
     pub fn view(&self, mut stdout: &Stdout) -> io::Result<()> {
         stdout
             .queue(terminal::Clear(terminal::ClearType::All))?
@@ -55,6 +60,7 @@ impl TabMgr {
             .queue(style::Print(&self.bannerline))?;
         self.tabs[self.curindex].view(stdout)
     }
+    // send keycode to current tab and process response
     pub fn update(&mut self, keycode: &KeyCode) -> bool {
         match self.tabs[self.curindex].update(keycode) {
             Some(msg) => {
@@ -133,13 +139,14 @@ impl Tab {
             page: Selector::new(rect, text, true),
         }
     }
-    pub fn view(&self, mut stdout: &Stdout) -> io::Result<()> {
-        stdout.queue(cursor::MoveTo(0, self.rect.y))?;
+    // show dialog if there's a dialog, otherwise show page
+    pub fn view(&self, stdout: &Stdout) -> io::Result<()> {
         match self.dlgstack.last() {
             Some(d) => d.view(stdout),
             _ => self.page.view(stdout),
         }
     }
+    // resize page and all dialogs
     pub fn resize(&mut self, rect: &Rect) {
         self.rect = rect.clone();
         self.page.resize(&rect);
@@ -148,6 +155,7 @@ impl Tab {
         }
     }
     pub fn update(&mut self, keycode: &KeyCode) -> Option<TabMsg> {
+        // send keycode to dialog if there is a dialog
         if let Some(d) = self.dlgstack.last_mut() {
             match d.update(keycode) {
                 Some(DialogMsg::Submit) => {
@@ -187,6 +195,7 @@ impl Tab {
                _ => return None
             }
         }
+        // there is no dialog, process keycode here
         match keycode {
             KeyCode::Char('v') => {
                 let dialog = Dialog::new(
@@ -222,6 +231,7 @@ impl Tab {
             KeyCode::Char('n') => {
                 Some(TabMsg::CycleRight)
             }
+            // make a dialog
             KeyCode::Enter => {
                 let dialog = match self.page.selectundercursor() {
                     Tag::Text => Dialog::new(

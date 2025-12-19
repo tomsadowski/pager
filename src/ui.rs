@@ -7,13 +7,16 @@ use std::io::{self, Write, Stdout};
 
 #[derive(Clone, Debug)]
 pub struct UI {
+    // bounds of this display
     rect: Rect,
+    // view currently in use
     view: View,
     tabs: TabMgr,
     history: String,
     bookmarks: String,
 } 
 impl UI {
+    // default view is View::Tab
     pub fn new(path: &str, w: u16, h: u16) -> Self {
         let rect = Rect::new(0, 0, w, h);
         Self {
@@ -24,6 +27,7 @@ impl UI {
             bookmarks: String::from(""),
         }
     }
+    // display the current view
     pub fn view(&self, mut stdout: &Stdout) -> io::Result<()> {
         match &self.view {
             View::Tab => self.tabs.view(stdout),
@@ -31,10 +35,13 @@ impl UI {
         }?;
         stdout.flush()
     }
+    // resize all views, maybe do this in parallel?
     fn resize(&mut self, w: u16, h: u16) {
         self.rect = Rect::new(0, 0, w, h);
         self.tabs.resize(&self.rect);
     }
+    // Resize and Control-C is handled here, 
+    // otherwise delegate to current view
     pub fn update(&mut self, event: Event) -> bool {
         match event {
             Event::Resize(w, h) => {
@@ -62,6 +69,7 @@ impl UI {
             _ => false,
         }
     }
+    // no need to derive PartialEq for View
     pub fn quit(&self) -> bool {
         match self.view {
             View::Quit => true,
